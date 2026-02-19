@@ -1,14 +1,44 @@
 "use client";
 
 import { useState } from "react";
-import { Crown, Flame, TrendingUp } from "lucide-react";
+import {
+  Crown,
+  Flame,
+  TrendingUp,
+  Sparkles,
+  Dumbbell,
+  Salad,
+  Quote,
+  BookOpen,
+} from "lucide-react";
 import { PostCard } from "./post-card";
-import { mockPosts } from "@/lib/mock-data";
+import { mockPosts, type PostType } from "@/lib/mock-data";
 
 type FeedTab = "following" | "explore";
+type CategoryFilter = "all" | PostType;
+
+const categories: {
+  id: CategoryFilter;
+  label: string;
+  icon: React.ElementType;
+  activeColor: string;
+  activeBg: string;
+}[] = [
+  { id: "all", label: "All", icon: Sparkles, activeColor: "text-lion-gold", activeBg: "bg-lion-gold/15 border-lion-gold/40" },
+  { id: "workout", label: "Workouts", icon: Dumbbell, activeColor: "text-orange-400", activeBg: "bg-orange-400/15 border-orange-400/40" },
+  { id: "meal", label: "Meals", icon: Salad, activeColor: "text-green-400", activeBg: "bg-green-400/15 border-green-400/40" },
+  { id: "quote", label: "Quotes", icon: Quote, activeColor: "text-lion-gold", activeBg: "bg-lion-gold/15 border-lion-gold/40" },
+  { id: "story", label: "Stories", icon: BookOpen, activeColor: "text-purple-400", activeBg: "bg-purple-400/15 border-purple-400/40" },
+];
 
 export function Feed() {
   const [activeTab, setActiveTab] = useState<FeedTab>("following");
+  const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
+
+  const filteredPosts =
+    activeCategory === "all"
+      ? mockPosts
+      : mockPosts.filter((p) => p.type === activeCategory);
 
   return (
     <div className="space-y-6">
@@ -69,58 +99,57 @@ export function Feed() {
         </div>
       </div>
 
-      {/* Stories / Highlights Row */}
-      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none">
-        {[
-          { label: "Your Story", isAdd: true },
-          { label: "Marcus", avatar: "marcus" },
-          { label: "Elena", avatar: "elena" },
-          { label: "King", avatar: "king" },
-          { label: "Ava", avatar: "ava" },
-        ].map((story, i) => (
-          <div
-            key={i}
-            className="flex flex-col items-center gap-1.5 flex-shrink-0"
-          >
-            <div
+      {/* Category Filter Tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
+        {categories.map((cat) => {
+          const Icon = cat.icon;
+          const isActive = activeCategory === cat.id;
+
+          return (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
               className={`
-                w-16 h-16 rounded-full flex items-center justify-center
+                flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold
+                border transition-all duration-200 whitespace-nowrap shrink-0
                 ${
-                  story.isAdd
-                    ? "bg-lion-dark-3 border-2 border-dashed border-lion-gold/30 hover:border-lion-gold/60"
-                    : "bg-gradient-to-br from-lion-gold via-lion-gold-light to-lion-gold-dark p-[2px]"
+                  isActive
+                    ? `${cat.activeBg} ${cat.activeColor}`
+                    : "bg-lion-dark-2 border-lion-gold/10 text-lion-gray-3 hover:border-lion-gold/25 hover:text-lion-gray-4"
                 }
-                transition-all duration-300 cursor-pointer
               `}
             >
-              {story.isAdd ? (
-                <span className="text-2xl text-lion-gold">+</span>
-              ) : (
-                <div className="w-full h-full rounded-full bg-lion-dark-2 flex items-center justify-center">
-                  <span className="text-sm font-bold text-lion-gray-4">
-                    {story.label[0]}
-                  </span>
-                </div>
+              <Icon className="w-3.5 h-3.5" />
+              {cat.label}
+              {isActive && activeCategory !== "all" && (
+                <span className="ml-0.5 opacity-70">
+                  ({filteredPosts.length})
+                </span>
               )}
-            </div>
-            <span className="text-[10px] text-lion-gray-3 font-medium">
-              {story.label}
-            </span>
-          </div>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
       {/* Posts Feed */}
       <div className="space-y-5">
-        {mockPosts.map((post, index) => (
-          <div
-            key={post.id}
-            className="animate-slide-up"
-            style={{ animationDelay: `${index * 100}ms` }}
-          >
-            <PostCard post={post} />
+        {filteredPosts.length > 0 ? (
+          filteredPosts.map((post, index) => (
+            <div
+              key={post.id}
+              className="animate-slide-up"
+              style={{ animationDelay: `${index * 100}ms` }}
+            >
+              <PostCard post={post} />
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-16">
+            <p className="text-sm text-lion-gray-3">
+              No posts in this category yet
+            </p>
           </div>
-        ))}
+        )}
       </div>
 
       {/* End of Feed */}
