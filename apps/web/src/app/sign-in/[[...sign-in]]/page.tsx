@@ -17,7 +17,7 @@ export default function SignInPage() {
         </div>
         <div className="text-center">
           <h1 className="text-2xl font-bold tracking-wider text-gold-gradient">
-            THE LION
+            GAINS
           </h1>
           <p className="text-sm text-lion-gray-3 mt-1">
             Welcome back, champion

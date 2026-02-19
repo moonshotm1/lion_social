@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import * as FileSystem from "expo-file-system";
 
 /**
- * Supabase client for The Lion mobile app.
+ * Supabase client for Gains mobile app.
  *
  * In production, set these values via environment variables
  * or Expo's app.config.js extra field.

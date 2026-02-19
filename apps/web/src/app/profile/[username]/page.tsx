@@ -132,7 +132,7 @@ export default function ProfilePage({
           </span>
           <span className="flex items-center gap-1">
             <LinkIcon className="w-3.5 h-3.5" />
-            <span className="text-lion-gold">lion.app/{user.username}</span>
+            <span className="text-lion-gold">gains.app/{user.username}</span>
           </span>
           <span className="flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5" />
@@ -169,7 +169,7 @@ export default function ProfilePage({
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-lion-gold/10 border border-lion-gold/20">
             <Crown className="w-3.5 h-3.5 text-lion-gold" />
             <span className="text-xs font-semibold text-lion-gold">
-              Pride Leader
+              Top Performer
             </span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-400/10 border border-orange-400/20">

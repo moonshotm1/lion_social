@@ -1,10 +1,10 @@
-# The Lion - Wellness Social
+# Gains - Wellness Social
 
 A premium wellness social platform where people share their fitness journeys, healthy meals, motivational quotes, and inspiring stories. Built with a Turborepo monorepo powering both a Next.js web app and an Expo React Native mobile app.
 
 ## Vision
 
-The Lion is a social network for people who are serious about self-improvement. Think Nike app meets Instagram — dark, bold, and premium. Users share workouts, meals, quotes, and stories to inspire and be inspired by their community (the "pride").
+Gains is a social network for people who are serious about self-improvement. Think Nike app meets Instagram — dark, bold, and premium. Users share workouts, meals, quotes, and stories to inspire and be inspired by the community.
 
 ## Tech Stack
 

@@ -50,7 +50,7 @@ export default function ExplorePage() {
       <div>
         <h1 className="text-2xl font-bold text-lion-white">Explore</h1>
         <p className="text-sm text-lion-gray-3 mt-1">
-          Discover what inspires the pride
+          Discover what inspires the community
         </p>
       </div>
 

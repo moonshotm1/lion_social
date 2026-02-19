@@ -1,5 +1,5 @@
 /**
- * The Lion - Mock Data
+ * Gains - Mock Data
  * Sample data for development and UI prototyping
  */
 

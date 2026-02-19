@@ -17,10 +17,10 @@ export default function SignUpPage() {
         </div>
         <div className="text-center">
           <h1 className="text-2xl font-bold tracking-wider text-gold-gradient">
-            THE LION
+            GAINS
           </h1>
           <p className="text-sm text-lion-gray-3 mt-1">
-            Join the pride. Elevate your life.
+            Join the community. Elevate your life.
           </p>
         </div>
       </div>

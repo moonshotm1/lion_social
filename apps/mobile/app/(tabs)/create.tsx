@@ -81,7 +81,7 @@ export default function CreateScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Create Post</Text>
           <Text style={styles.headerSubtitle}>
-            Share your journey with the pride
+            Share your journey with the community
           </Text>
         </View>
 
@@ -192,7 +192,7 @@ export default function CreateScreen() {
                 !isValid && styles.submitButtonTextDisabled,
               ]}
             >
-              Share with the Pride
+              Share Your Gains
             </Text>
           </Pressable>
         </View>

@@ -118,7 +118,7 @@ export default function CreatePage() {
           <div>
             <h1 className="text-xl font-bold text-lion-white">Create Post</h1>
             <p className="text-sm text-lion-gray-3">
-              Share your progress with the pride
+              Share your progress with the community
             </p>
           </div>
         </div>
@@ -315,7 +315,7 @@ export default function CreatePage() {
             }
           `}
         >
-          Share with the Pride
+          Share Your Gains
         </button>
       </div>
     </div>

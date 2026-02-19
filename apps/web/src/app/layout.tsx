@@ -15,7 +15,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "The Lion | Wellness Social",
+  title: "Gains | Wellness Social",
   description:
     "Elevate your wellness journey. Share workouts, meals, and motivation with a community that pushes you to be your best.",
   keywords: [
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     "health",
   ],
   openGraph: {
-    title: "The Lion | Wellness Social",
+    title: "Gains | Wellness Social",
     description:
       "Elevate your wellness journey. Share workouts, meals, and motivation with a community that pushes you to be your best.",
     type: "website",

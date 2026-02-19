@@ -33,7 +33,7 @@ export default function HomeScreen() {
     <View style={styles.headerContainer}>
       {/* App Title */}
       <View style={styles.titleRow}>
-        <Text style={styles.titleText}>THE LION</Text>
+        <Text style={styles.titleText}>GAINS</Text>
         <View style={styles.titleAccent} />
       </View>
 

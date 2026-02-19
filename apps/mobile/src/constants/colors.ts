@@ -1,5 +1,5 @@
 /**
- * The Lion - Color Constants
+ * Gains - Color Constants
  * Premium dark mode palette with gold accents
  */
 

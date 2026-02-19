@@ -34,7 +34,7 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-wider text-gold-gradient">
-              THE LION
+              GAINS
             </h1>
             <p className="text-[10px] tracking-[0.2em] text-lion-gray-3 uppercase">
               Wellness Social
