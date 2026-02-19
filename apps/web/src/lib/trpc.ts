@@ -1,9 +1,7 @@
 import { createTRPCReact } from "@trpc/react-query";
 import { httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
-
-// Type placeholder - will be replaced with actual AppRouter type from @lion/api
-type AppRouter = any;
+import type { AppRouter } from "@lion/api";
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -28,21 +26,3 @@ export function getTrpcClient() {
     ],
   });
 }
-
-/**
- * tRPC provider configuration for the app.
- *
- * Usage in a provider component:
- * ```tsx
- * const [queryClient] = useState(() => new QueryClient());
- * const [trpcClient] = useState(() => getTrpcClient());
- *
- * return (
- *   <trpc.Provider client={trpcClient} queryClient={queryClient}>
- *     <QueryClientProvider client={queryClient}>
- *       {children}
- *     </QueryClientProvider>
- *   </trpc.Provider>
- * );
- * ```
- */

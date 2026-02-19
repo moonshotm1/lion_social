@@ -17,7 +17,9 @@ import {
   Flame,
   Trophy,
 } from "lucide-react";
-import { mockUsers, mockPosts, formatCount } from "@/lib/mock-data";
+import { useUserProfile } from "@/hooks/use-user-profile";
+import { formatCount } from "@/lib/types";
+import { mockPosts } from "@/lib/mock-data";
 
 type ProfileTab = "posts" | "likes" | "saved";
 
@@ -29,9 +31,18 @@ export default function ProfilePage({
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [isFollowing, setIsFollowing] = useState(false);
 
-  // Use first mock user for demo
-  const user = mockUsers.find((u) => u.username === params.username) || mockUsers[0];
-  const userPosts = mockPosts.filter((p) => p.author.id === user.id);
+  const { user: profileUser, posts: userPosts, isLoading } = useUserProfile(params.username);
+  const user = profileUser ?? {
+    id: "",
+    username: params.username,
+    displayName: params.username,
+    avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=${params.username}`,
+    bio: "",
+    followers: 0,
+    following: 0,
+    posts: 0,
+    isVerified: false,
+  };
 
   // Fill grid with all posts if user has few posts
   const gridPosts = userPosts.length > 0 ? userPosts : mockPosts.slice(0, 6);

@@ -3,7 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null;
 
 /**
  * Upload a file to Supabase Storage
@@ -13,6 +16,11 @@ export async function uploadFile(
   path: string,
   file: File
 ): Promise<string | null> {
+  if (!supabase) {
+    console.warn("[Demo Mode] File upload simulated");
+    return URL.createObjectURL(file);
+  }
+
   const { data, error } = await supabase.storage
     .from(bucket)
     .upload(path, file, {
@@ -39,6 +47,11 @@ export async function deleteFile(
   bucket: string,
   path: string
 ): Promise<boolean> {
+  if (!supabase) {
+    console.warn("[Demo Mode] File delete simulated");
+    return true;
+  }
+
   const { error } = await supabase.storage.from(bucket).remove([path]);
 
   if (error) {
@@ -57,6 +70,11 @@ export async function getSignedUrl(
   path: string,
   expiresIn: number = 3600
 ): Promise<string | null> {
+  if (!supabase) {
+    console.warn("[Demo Mode] Signed URL simulated");
+    return null;
+  }
+
   const { data, error } = await supabase.storage
     .from(bucket)
     .createSignedUrl(path, expiresIn);

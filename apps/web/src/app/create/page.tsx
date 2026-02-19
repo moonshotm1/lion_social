@@ -23,6 +23,7 @@ import {
   Droplets,
 } from "lucide-react";
 import Link from "next/link";
+import { useCreatePost } from "@/hooks/use-create-post";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1096,6 +1097,7 @@ function StoryForm({
 
 export default function CreatePage() {
   // ── Common ──
+  const { createPost, isLoading: isSubmitting } = useCreatePost();
   const [selectedType, setSelectedType] = useState<PostType | null>(null);
 
   // ── Workout state ──
@@ -1160,6 +1162,52 @@ export default function CreatePage() {
         return false;
     }
   })();
+
+  // ── Submit handler ──
+  const handleSubmit = () => {
+    if (!selectedType || !isValid) return;
+
+    let caption = "";
+    let metadata: Record<string, unknown> = {};
+    let imageUrl: string | undefined;
+
+    switch (selectedType) {
+      case "workout":
+        caption = workoutCaption || workoutTitle;
+        imageUrl = workoutImageUrl ?? undefined;
+        metadata = {
+          title: workoutTitle,
+          exercises,
+          duration: parseInt(workoutDuration) || 0,
+        };
+        break;
+      case "meal":
+        caption = mealCaption || mealName;
+        imageUrl = mealImageUrl ?? undefined;
+        metadata = {
+          name: mealName,
+          mealType: mealType ?? "lunch",
+          ingredients,
+          macros: {
+            calories: parseInt(calories) || 0,
+            protein: parseInt(protein) || 0,
+            carbs: parseInt(carbs) || 0,
+            fat: parseInt(fat) || 0,
+          },
+        };
+        break;
+      case "quote":
+        caption = quoteCaption || quoteText;
+        metadata = { text: quoteText, author: quoteAuthor };
+        break;
+      case "story":
+        caption = storyCaption || storyTitle;
+        metadata = { title: storyTitle, content: storyContent, tags };
+        break;
+    }
+
+    createPost({ type: selectedType, caption, imageUrl, metadata });
+  };
 
   // ── Validation hints ──
   const validationHints = (() => {
@@ -1376,18 +1424,19 @@ export default function CreatePage() {
               Cancel
             </Link>
             <button
-              disabled={!isValid}
+              onClick={handleSubmit}
+              disabled={!isValid || isSubmitting}
               className={`
                 flex-1 py-3 rounded-xl text-sm font-semibold
                 transition-all duration-300
                 ${
-                  isValid
+                  isValid && !isSubmitting
                     ? "btn-gold"
                     : "bg-lion-dark-3 text-lion-gray-2 cursor-not-allowed"
                 }
               `}
             >
-              Share Your Gains
+              {isSubmitting ? "Posting..." : "Share Your Gains"}
             </button>
           </div>
         </div>

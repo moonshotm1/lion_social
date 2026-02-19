@@ -2,11 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { Providers } from "@/components/providers/providers";
 import "./globals.css";
-
-// Clerk — uncomment once API keys are configured
-// import { ClerkProvider } from "@clerk/nextjs";
-// import { dark } from "@clerk/themes";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -42,18 +39,15 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${inter.variable}`}>
       <body className="bg-lion-black text-lion-white font-sans antialiased">
-        <div className="flex min-h-screen">
-          {/* Desktop Sidebar */}
-          <Sidebar />
-
-          {/* Main Content */}
-          <main className="flex-1 lg:ml-64 pb-20 lg:pb-0">
-            <div className="max-w-2xl mx-auto px-4 py-6">{children}</div>
-          </main>
-        </div>
-
-        {/* Mobile Bottom Navigation */}
-        <MobileNav />
+        <Providers>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <main className="flex-1 lg:ml-64 pb-20 lg:pb-0">
+              <div className="max-w-2xl mx-auto px-4 py-6">{children}</div>
+            </main>
+          </div>
+          <MobileNav />
+        </Providers>
       </body>
     </html>
   );

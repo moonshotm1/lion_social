@@ -17,16 +17,9 @@ import {
   BookOpen,
   UtensilsCrossed,
 } from "lucide-react";
-import {
-  type MockPost,
-  type WorkoutData,
-  type MealData,
-  type QuoteData,
-  type StoryData,
-  getTimeAgo,
-  formatCount,
-  postTypeConfig,
-} from "@/lib/mock-data";
+import type { MockPost, WorkoutData, MealData, QuoteData, StoryData } from "@/lib/types";
+import { getTimeAgo, formatCount, postTypeConfig } from "@/lib/types";
+import { useLike } from "@/hooks/use-like";
 
 // ─── Helper: calculate total volume ────────────────────────────────────────
 
@@ -258,6 +251,7 @@ export function PostCard({ post, onLike }: PostCardProps) {
   const [likeCount, setLikeCount] = useState(post.likes);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isAnimatingLike, setIsAnimatingLike] = useState(false);
+  const { toggleLike } = useLike();
 
   const typeConfig = postTypeConfig[post.type];
 
@@ -265,6 +259,7 @@ export function PostCard({ post, onLike }: PostCardProps) {
     setIsAnimatingLike(true);
     setIsLiked(!isLiked);
     setLikeCount((prev) => (isLiked ? prev - 1 : prev + 1));
+    toggleLike(post.id);
     onLike?.(post.id);
     setTimeout(() => setIsAnimatingLike(false), 300);
   };

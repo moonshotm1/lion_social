@@ -139,6 +139,7 @@ export const postRouter = router({
         type: z.enum(["workout", "meal", "quote", "story"]),
         caption: z.string().min(1).max(2000),
         imageUrl: z.string().url().optional(),
+        metadata: z.record(z.unknown()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -148,6 +149,7 @@ export const postRouter = router({
           type: input.type,
           caption: input.caption,
           imageUrl: input.imageUrl,
+          metadata: input.metadata ?? undefined,
         },
         include: {
           user: true,

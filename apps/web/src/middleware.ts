@@ -1,23 +1,36 @@
-// Clerk middleware — disabled until API keys are configured.
-// Uncomment the below once you add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to .env
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-// import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-//
-// const isPublicRoute = createRouteMatcher([
-//   "/",
-//   "/sign-in(.*)",
-//   "/sign-up(.*)",
-//   "/explore",
-//   "/profile/(.*)",
-//   "/api/trpc(.*)",
-// ]);
-//
-// export default clerkMiddleware(async (auth, request) => {
-//   if (!isPublicRoute(request)) {
-//     await auth.protect();
-//   }
-// });
+const isDemoMode = !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+export default async function middleware(request: NextRequest) {
+  if (isDemoMode) {
+    return NextResponse.next();
+  }
+
+  const { clerkMiddleware, createRouteMatcher } = await import(
+    "@clerk/nextjs/server"
+  );
+
+  const isPublicRoute = createRouteMatcher([
+    "/",
+    "/sign-in(.*)",
+    "/sign-up(.*)",
+    "/explore",
+    "/profile/(.*)",
+    "/api/trpc(.*)",
+  ]);
+
+  return (clerkMiddleware as any)(async (auth: any, req: any) => {
+    if (!isPublicRoute(req)) {
+      await auth.protect();
+    }
+  })(request);
+}
 
 export const config = {
-  matcher: [],
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
 };

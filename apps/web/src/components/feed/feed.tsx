@@ -12,7 +12,8 @@ import {
   BookOpen,
 } from "lucide-react";
 import { PostCard } from "./post-card";
-import { mockPosts, type PostType } from "@/lib/mock-data";
+import { useFeed } from "@/hooks/use-feed";
+import type { PostType } from "@/lib/types";
 
 type FeedTab = "following" | "explore";
 type CategoryFilter = "all" | PostType;
@@ -35,10 +36,7 @@ export function Feed() {
   const [activeTab, setActiveTab] = useState<FeedTab>("following");
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
-  const filteredPosts =
-    activeCategory === "all"
-      ? mockPosts
-      : mockPosts.filter((p) => p.type === activeCategory);
+  const { posts: filteredPosts, isLoading } = useFeed(activeCategory);
 
   return (
     <div className="space-y-6">

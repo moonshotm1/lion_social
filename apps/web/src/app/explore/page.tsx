@@ -17,12 +17,9 @@ import {
   ArrowRight,
   X,
 } from "lucide-react";
-import {
-  mockPosts,
-  mockUsers,
-  formatCount,
-  type PostType,
-} from "@/lib/mock-data";
+import { useExplore } from "@/hooks/use-explore";
+import { formatCount } from "@/lib/types";
+import type { PostType } from "@/lib/types";
 
 type CategoryTab = "all" | PostType;
 
@@ -39,10 +36,8 @@ export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
-  const filteredPosts =
-    activeCategory === "all"
-      ? mockPosts
-      : mockPosts.filter((p) => p.type === activeCategory);
+  const { trendingPosts, featuredUsers, isLoading, filterByCategory } = useExplore();
+  const filteredPosts = filterByCategory(activeCategory);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -199,7 +194,7 @@ export default function ExplorePage() {
         </div>
 
         <div className="space-y-3">
-          {mockUsers.map((creator) => (
+          {featuredUsers.map((creator) => (
             <Link
               key={creator.id}
               href={`/profile/${creator.username}`}

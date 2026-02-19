@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -12,7 +11,9 @@ import {
   Check,
   CheckCheck,
 } from "lucide-react";
-import { mockNotifications, getTimeAgo, type MockNotification } from "@/lib/mock-data";
+import { useNotifications } from "@/hooks/use-notifications";
+import { getTimeAgo } from "@/lib/types";
+import type { MockNotification } from "@/lib/types";
 
 const notificationIcons: Record<MockNotification["type"], React.ElementType> = {
   like: Heart,
@@ -29,19 +30,9 @@ const notificationColors: Record<MockNotification["type"], string> = {
 };
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const { notifications, isLoading, markRead, markAllRead } = useNotifications();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -83,7 +74,7 @@ export default function NotificationsPage() {
           return (
             <div
               key={notification.id}
-              onClick={() => markAsRead(notification.id)}
+              onClick={() => markRead(notification.id)}
               className={`
                 relative flex items-start gap-3 p-4 rounded-xl
                 transition-all duration-200 cursor-pointer
