@@ -1,0 +1,10 @@
+{
+  "name": "@lion/config",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./tailwind.config.ts",
+  "files": [
+    "tailwind.config.ts",
+    "tsconfig.base.json"
+  ]
+}

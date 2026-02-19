@@ -1,0 +1,199 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --lion-gold: #D4A843;
+    --lion-gold-light: #E8C76A;
+    --lion-gold-dark: #B8912E;
+    --lion-black: #0A0A0A;
+    --lion-dark-1: #111111;
+    --lion-dark-2: #1A1A1A;
+    --lion-dark-3: #222222;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--lion-black);
+    color: #F5F5F5;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Custom selection colors */
+  ::selection {
+    background-color: rgba(212, 168, 67, 0.35);
+    color: #F5F5F5;
+  }
+
+  ::-moz-selection {
+    background-color: rgba(212, 168, 67, 0.35);
+    color: #F5F5F5;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--lion-dark-1);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--lion-gold-dark);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--lion-gold);
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--lion-gold-dark) var(--lion-dark-1);
+  }
+}
+
+@layer components {
+  /* Gold gradient text */
+  .text-gold-gradient {
+    background: linear-gradient(135deg, #D4A843 0%, #E8C76A 50%, #B8912E 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Gold border glow effect */
+  .border-gold-glow {
+    border: 1px solid rgba(212, 168, 67, 0.3);
+    box-shadow: 0 0 15px rgba(212, 168, 67, 0.08);
+  }
+
+  /* Premium card style */
+  .card-premium {
+    background: linear-gradient(135deg, #1A1A1A 0%, #111111 100%);
+    border: 1px solid rgba(212, 168, 67, 0.12);
+    border-radius: 16px;
+    transition: all 0.3s ease;
+  }
+
+  .card-premium:hover {
+    border-color: rgba(212, 168, 67, 0.25);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(212, 168, 67, 0.06);
+    transform: translateY(-1px);
+  }
+
+  /* Gold button */
+  .btn-gold {
+    background: linear-gradient(135deg, #D4A843 0%, #E8C76A 50%, #B8912E 100%);
+    color: #0A0A0A;
+    font-weight: 600;
+    border-radius: 12px;
+    padding: 10px 24px;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-gold:hover {
+    box-shadow: 0 4px 20px rgba(212, 168, 67, 0.35);
+    transform: translateY(-1px);
+  }
+
+  .btn-gold:active {
+    transform: translateY(0);
+  }
+
+  /* Ghost button with gold border */
+  .btn-ghost-gold {
+    background: transparent;
+    color: var(--lion-gold);
+    font-weight: 500;
+    border-radius: 12px;
+    padding: 10px 24px;
+    border: 1px solid rgba(212, 168, 67, 0.3);
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .btn-ghost-gold:hover {
+    background: rgba(212, 168, 67, 0.1);
+    border-color: var(--lion-gold);
+  }
+
+  /* Input styling */
+  .input-dark {
+    background-color: var(--lion-dark-2);
+    border: 1px solid rgba(212, 168, 67, 0.12);
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: #F5F5F5;
+    transition: all 0.3s ease;
+    outline: none;
+    width: 100%;
+  }
+
+  .input-dark::placeholder {
+    color: #555555;
+  }
+
+  .input-dark:focus {
+    border-color: var(--lion-gold);
+    box-shadow: 0 0 0 3px rgba(212, 168, 67, 0.1);
+  }
+
+  /* Animated underline for nav links */
+  .nav-link-underline {
+    position: relative;
+  }
+
+  .nav-link-underline::after {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #D4A843, #E8C76A);
+    transition: width 0.3s ease;
+  }
+
+  .nav-link-underline:hover::after,
+  .nav-link-underline.active::after {
+    width: 100%;
+  }
+}
+
+@layer utilities {
+  .animate-delay-100 {
+    animation-delay: 100ms;
+  }
+  .animate-delay-200 {
+    animation-delay: 200ms;
+  }
+  .animate-delay-300 {
+    animation-delay: 300ms;
+  }
+  .animate-delay-400 {
+    animation-delay: 400ms;
+  }
+  .animate-delay-500 {
+    animation-delay: 500ms;
+  }
+}
