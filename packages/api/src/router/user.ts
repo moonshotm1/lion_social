@@ -47,13 +47,13 @@ export const userRouter = router({
     }),
 
   /**
-   * Get a user by their Clerk authentication ID.
+   * Get a user by their Supabase authentication ID.
    */
-  byClerkId: publicProcedure
-    .input(z.object({ clerkId: z.string() }))
+  bySupabaseId: publicProcedure
+    .input(z.object({ supabaseId: z.string() }))
     .query(async ({ ctx, input }) => {
       const user = await ctx.prisma.user.findUnique({
-        where: { clerkId: input.clerkId },
+        where: { supabaseId: input.supabaseId },
         include: {
           _count: {
             select: {
@@ -74,7 +74,7 @@ export const userRouter = router({
   create: protectedProcedure
     .input(
       z.object({
-        clerkId: z.string(),
+        supabaseId: z.string(),
         username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/, {
           message: "Username can only contain letters, numbers, and underscores",
         }),
@@ -85,7 +85,7 @@ export const userRouter = router({
     .mutation(async ({ ctx, input }) => {
       const user = await ctx.prisma.user.create({
         data: {
-          clerkId: input.clerkId,
+          supabaseId: input.supabaseId,
           username: input.username,
           bio: input.bio,
           avatarUrl: input.avatarUrl,

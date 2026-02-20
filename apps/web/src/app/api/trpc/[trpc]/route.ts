@@ -1,9 +1,10 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter, createContext } from "@lion/api";
 import { prisma } from "@lion/database";
+import { createSupabaseServerClient } from "@/lib/supabase";
 
 const isDemoMode =
-  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || !process.env.DATABASE_URL;
+  !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.DATABASE_URL;
 
 const handler = async (req: Request) => {
   if (isDemoMode) {
@@ -15,20 +16,20 @@ const handler = async (req: Request) => {
     );
   }
 
-  // Dynamically import Clerk auth only when keys exist
-  const { auth } = await import("@clerk/nextjs/server");
-
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req,
     router: appRouter,
     createContext: async () => {
-      const { userId: clerkUserId } = await auth();
+      const supabase = await createSupabaseServerClient();
+      const {
+        data: { user: supabaseUser },
+      } = await supabase.auth.getUser();
 
       let userId: string | null = null;
-      if (clerkUserId) {
+      if (supabaseUser) {
         const user = await prisma.user.findUnique({
-          where: { clerkId: clerkUserId },
+          where: { supabaseId: supabaseUser.id },
           select: { id: true },
         });
         userId = user?.id ?? null;

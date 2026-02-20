@@ -19,7 +19,7 @@ export interface Post {
 // ── User Types ──
 export interface UserProfile {
   id: string;
-  clerkId: string;
+  supabaseId: string;
   username: string;
   bio: string | null;
   avatarUrl: string | null;

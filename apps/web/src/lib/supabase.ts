@@ -1,8 +1,39 @@
 import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient, createServerClient } from "@supabase/ssr";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
+// ── Browser client (for "use client" components) ────────────────────
+export function createSupabaseBrowserClient() {
+  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+}
+
+// ── Server client (for Server Components, API routes, Route Handlers) ──
+export async function createSupabaseServerClient() {
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          // setAll can fail in Server Components (read-only cookies).
+          // The middleware handles session refresh instead.
+        }
+      },
+    },
+  });
+}
+
+// ── Storage client (for file upload utilities) ──────────────────────
 export const supabase =
   supabaseUrl && supabaseAnonKey
     ? createClient(supabaseUrl, supabaseAnonKey)

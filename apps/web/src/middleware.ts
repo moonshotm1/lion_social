@@ -1,31 +1,59 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
-const isDemoMode = !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-export default async function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   if (isDemoMode) {
     return NextResponse.next();
   }
 
-  const { clerkMiddleware, createRouteMatcher } = await import(
-    "@clerk/nextjs/server"
+  let supabaseResponse = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
   );
 
-  const isPublicRoute = createRouteMatcher([
-    "/",
-    "/sign-in(.*)",
-    "/sign-up(.*)",
-    "/explore",
-    "/profile/(.*)",
-    "/api/trpc(.*)",
-  ]);
+  // Refresh the session (updates expired tokens via cookies)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return (clerkMiddleware as any)(async (auth: any, req: any) => {
-    if (!isPublicRoute(req)) {
-      await auth.protect();
-    }
-  })(request);
+  // Public routes that don't require authentication
+  const isPublicRoute =
+    request.nextUrl.pathname === "/" ||
+    request.nextUrl.pathname.startsWith("/sign-in") ||
+    request.nextUrl.pathname.startsWith("/sign-up") ||
+    request.nextUrl.pathname.startsWith("/explore") ||
+    request.nextUrl.pathname.startsWith("/profile/") ||
+    request.nextUrl.pathname.startsWith("/api/trpc") ||
+    request.nextUrl.pathname.startsWith("/auth/callback");
+
+  if (!user && !isPublicRoute) {
+    const signInUrl = new URL("/sign-in", request.url);
+    signInUrl.searchParams.set("redirect_to", request.nextUrl.pathname);
+    return NextResponse.redirect(signInUrl);
+  }
+
+  return supabaseResponse;
 }
 
 export const config = {

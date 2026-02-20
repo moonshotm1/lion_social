@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
   Compass,
@@ -23,6 +23,15 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    const { createSupabaseBrowserClient } = await import("@/lib/supabase");
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    router.push("/sign-in");
+    router.refresh();
+  };
 
   return (
     <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col bg-lion-dark-1 border-r border-lion-gold/10 z-50">
@@ -116,7 +125,7 @@ export function Sidebar() {
           <span className="text-sm font-medium">Settings</span>
         </Link>
 
-        <button className="flex items-center gap-4 px-4 py-3 rounded-xl text-lion-gray-3 hover:text-red-400 hover:bg-red-400/5 transition-all duration-200 w-full">
+        <button onClick={handleSignOut} className="flex items-center gap-4 px-4 py-3 rounded-xl text-lion-gray-3 hover:text-red-400 hover:bg-red-400/5 transition-all duration-200 w-full">
           <LogOut className="w-5 h-5" />
           <span className="text-sm font-medium">Log out</span>
         </button>

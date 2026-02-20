@@ -19,23 +19,22 @@ function useCurrentUserDemo(): UseCurrentUserResult {
 }
 
 function useCurrentUserReal(): UseCurrentUserResult {
-  // Dynamic imports to avoid calling Clerk hooks in demo mode
-  const { useUser } = require("@clerk/nextjs");
+  const { useAuth } = require("@/components/providers/auth-provider");
   const { trpc } = require("@/lib/trpc");
   const { transformUser } = require("@/lib/transforms");
 
-  const { user: clerkUser, isSignedIn, isLoaded } = useUser();
-  const dbUserQuery = trpc.user.byClerkId.useQuery(
-    { clerkId: clerkUser?.id ?? "" },
-    { enabled: !!clerkUser?.id }
+  const { user: supabaseUser, isLoading: authLoading } = useAuth();
+  const dbUserQuery = trpc.user.bySupabaseId.useQuery(
+    { supabaseId: supabaseUser?.id ?? "" },
+    { enabled: !!supabaseUser?.id }
   );
 
   const user = dbUserQuery.data ? transformUser(dbUserQuery.data) : null;
 
   return {
     user,
-    isSignedIn: isSignedIn ?? false,
-    isLoading: !isLoaded || dbUserQuery.isLoading,
+    isSignedIn: !!supabaseUser,
+    isLoading: authLoading || dbUserQuery.isLoading,
   };
 }
 

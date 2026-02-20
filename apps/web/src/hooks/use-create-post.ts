@@ -24,7 +24,7 @@ function useCreatePostDemo(): UseCreatePostResult {
     createPost: (input: CreatePostInput) => {
       console.log("[Demo Mode] Post created:", input);
       alert(
-        "Demo mode: Post would be created! Add Supabase & Clerk API keys to enable real posting."
+        "Demo mode: Post would be created! Add Supabase keys to enable real posting."
       );
       router.push("/");
     },
