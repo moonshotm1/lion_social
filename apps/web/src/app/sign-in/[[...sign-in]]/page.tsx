@@ -58,6 +58,9 @@ function SupabaseSignIn() {
         return;
       }
 
+      // Ensure a DB profile exists for this user (creates one if missing)
+      await fetch("/api/auth/ensure-profile", { method: "POST" });
+
       router.push(redirectTo);
       router.refresh();
     } catch {
