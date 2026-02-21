@@ -45,6 +45,7 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/explore") ||
     request.nextUrl.pathname.startsWith("/profile/") ||
     request.nextUrl.pathname.startsWith("/api/trpc") ||
+    request.nextUrl.pathname.startsWith("/api/auth/") ||
     request.nextUrl.pathname.startsWith("/auth/callback");
 
   if (!user && !isPublicRoute) {
