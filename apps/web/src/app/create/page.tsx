@@ -433,7 +433,7 @@ function WorkoutForm({
       </SectionCard>
 
       {/* Exercises */}
-      <SectionCard title="Exercises" required>
+      <SectionCard title="Exercises">
         <div className="space-y-4">
           {exercises.map((exercise, exIdx) => (
             <div
@@ -1097,7 +1097,7 @@ function StoryForm({
 
 export default function CreatePage() {
   // ── Common ──
-  const { createPost, isLoading: isSubmitting } = useCreatePost();
+  const { createPost, isLoading: isSubmitting, error: postError } = useCreatePost();
   const [selectedType, setSelectedType] = useState<PostType | null>(null);
 
   // ── Workout state ──
@@ -1147,11 +1147,7 @@ export default function CreatePage() {
     if (!selectedType) return false;
     switch (selectedType) {
       case "workout":
-        return (
-          workoutTitle.trim().length > 0 &&
-          exercises.length > 0 &&
-          exercises.some((ex) => ex.name.trim().length > 0)
-        );
+        return workoutTitle.trim().length > 0;
       case "meal":
         return mealName.trim().length > 0;
       case "quote":
@@ -1169,21 +1165,22 @@ export default function CreatePage() {
 
     let caption = "";
     let metadata: Record<string, unknown> = {};
-    let imageUrl: string | undefined;
+    // Exclude data: URLs — they can't be stored and would fail server validation
+    const toServerUrl = (url: string | null | undefined) =>
+      url && !url.startsWith("data:") ? url : undefined;
 
     switch (selectedType) {
       case "workout":
         caption = workoutCaption || workoutTitle;
-        imageUrl = workoutImageUrl ?? undefined;
         metadata = {
           title: workoutTitle,
-          exercises,
+          // Only include exercises that have a name filled in
+          exercises: exercises.filter((ex) => ex.name.trim().length > 0),
           duration: parseInt(workoutDuration) || 0,
         };
         break;
       case "meal":
         caption = mealCaption || mealName;
-        imageUrl = mealImageUrl ?? undefined;
         metadata = {
           name: mealName,
           mealType: mealType ?? "lunch",
@@ -1206,6 +1203,13 @@ export default function CreatePage() {
         break;
     }
 
+    const imageUrl =
+      selectedType === "workout"
+        ? toServerUrl(workoutImageUrl)
+        : selectedType === "meal"
+        ? toServerUrl(mealImageUrl)
+        : undefined;
+
     createPost({ type: selectedType, caption, imageUrl, metadata });
   };
 
@@ -1216,7 +1220,6 @@ export default function CreatePage() {
       case "workout": {
         const missing: string[] = [];
         if (!workoutTitle.trim()) missing.push("workout title");
-        if (!exercises.some((ex) => ex.name.trim())) missing.push("at least one exercise name");
         return missing.length > 0 ? missing : null;
       }
       case "meal": {
@@ -1412,6 +1415,13 @@ export default function CreatePage() {
                   {validationHints.join(", ")}
                 </span>
               </p>
+            </div>
+          )}
+
+          {/* Post error */}
+          {postError && (
+            <div className="rounded-xl bg-red-400/10 border border-red-400/20 px-4 py-3 text-sm text-red-400">
+              {(postError as any)?.message ?? "Failed to create post. Are you signed in?"}
             </div>
           )}
 
