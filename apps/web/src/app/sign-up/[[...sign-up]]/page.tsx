@@ -65,6 +65,7 @@ function SupabaseSignUp() {
           email,
           password,
           options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
             data: { username },
           },
         });
@@ -90,16 +91,7 @@ function SupabaseSignUp() {
 
       // No email confirmation — create user profile immediately
       if (authData.user) {
-        await fetch("/api/trpc/user.create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            json: {
-              supabaseId: authData.user.id,
-              username,
-            },
-          }),
-        });
+        await fetch("/api/auth/ensure-profile", { method: "POST" });
       }
 
       router.push("/");

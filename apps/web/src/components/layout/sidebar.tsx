@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
@@ -12,18 +13,24 @@ import {
   LogOut,
   Settings,
 } from "lucide-react";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
-const navItems = [
+const staticNavItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/explore", label: "Explore", icon: Compass },
   { href: "/create", label: "Create", icon: PlusSquare },
   { href: "/notifications", label: "Notifications", icon: Bell },
-  { href: "/profile/me", label: "Profile", icon: User },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { user } = useCurrentUser();
+  const profileHref = user ? `/profile/${user.username}` : "/profile/me";
+  const navItems = [
+    ...staticNavItems,
+    { href: profileHref, label: "Profile", icon: User },
+  ];
 
   const handleSignOut = async () => {
     const { createSupabaseBrowserClient } = await import("@/lib/supabase");
@@ -132,19 +139,27 @@ export function Sidebar() {
       </div>
 
       {/* User card */}
-      <div className="p-4 m-3 rounded-xl bg-lion-dark-2 border border-lion-gold/10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-gold-gradient flex items-center justify-center text-lion-black font-bold text-sm">
-            M
+      {user && (
+        <Link href={profileHref} className="block p-4 m-3 rounded-xl bg-lion-dark-2 border border-lion-gold/10 hover:border-lion-gold/20 transition-colors duration-200">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full overflow-hidden ring-1 ring-lion-gold/20 shrink-0">
+              <Image
+                src={user.avatar}
+                alt={user.displayName}
+                width={36}
+                height={36}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-lion-white truncate">
+                {user.displayName}
+              </p>
+              <p className="text-xs text-lion-gray-3 truncate">@{user.username}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-lion-white truncate">
-              You
-            </p>
-            <p className="text-xs text-lion-gray-3 truncate">@your_handle</p>
-          </div>
-        </div>
-      </div>
+        </Link>
+      )}
     </aside>
   );
 }

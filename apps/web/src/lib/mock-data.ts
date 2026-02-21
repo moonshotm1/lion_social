@@ -57,7 +57,9 @@ export interface MockPost {
   likes: number;
   comments: number;
   shares: number;
+  views: number;
   isLiked: boolean;
+  isFavorited: boolean;
   tags: string[];
   // Type-specific data
   workoutData?: WorkoutData;
@@ -146,7 +148,9 @@ export const mockPosts: MockPost[] = [
     likes: 847,
     comments: 92,
     shares: 34,
+    views: 5240,
     isLiked: false,
+    isFavorited: false,
     createdAt: "2024-08-15T10:30:00Z",
     tags: ["legday", "squats", "powerlifting"],
     workoutData: {
@@ -194,7 +198,9 @@ export const mockPosts: MockPost[] = [
     likes: 623,
     comments: 45,
     shares: 78,
+    views: 3891,
     isLiked: true,
+    isFavorited: true,
     createdAt: "2024-08-15T08:15:00Z",
     tags: ["mealprep", "nutrition", "postworkout"],
     mealData: {
@@ -220,7 +226,9 @@ export const mockPosts: MockPost[] = [
     likes: 3241,
     comments: 287,
     shares: 512,
+    views: 18700,
     isLiked: false,
+    isFavorited: false,
     createdAt: "2024-08-14T22:00:00Z",
     tags: ["mindset", "motivation", "emerson"],
     quoteData: {
@@ -241,7 +249,9 @@ export const mockPosts: MockPost[] = [
     likes: 1892,
     comments: 234,
     shares: 156,
+    views: 9430,
     isLiked: true,
+    isFavorited: false,
     createdAt: "2024-08-14T16:45:00Z",
     tags: ["transformation", "discipline", "progress"],
     storyData: {
@@ -264,7 +274,9 @@ export const mockPosts: MockPost[] = [
     likes: 567,
     comments: 43,
     shares: 21,
+    views: 2810,
     isLiked: false,
+    isFavorited: false,
     createdAt: "2024-08-13T14:20:00Z",
     tags: ["pushday", "chest", "shoulders"],
     workoutData: {
@@ -312,7 +324,9 @@ export const mockPosts: MockPost[] = [
     likes: 412,
     comments: 38,
     shares: 45,
+    views: 2190,
     isLiked: false,
+    isFavorited: true,
     createdAt: "2024-08-13T07:00:00Z",
     tags: ["smoothie", "breakfast", "fuel"],
     mealData: {
@@ -338,7 +352,9 @@ export const mockPosts: MockPost[] = [
     likes: 2187,
     comments: 198,
     shares: 341,
+    views: 12500,
     isLiked: true,
+    isFavorited: false,
     createdAt: "2024-08-12T20:00:00Z",
     tags: ["discipline", "motivation", "lincoln"],
     quoteData: {
@@ -359,7 +375,9 @@ export const mockPosts: MockPost[] = [
     likes: 1456,
     comments: 312,
     shares: 189,
+    views: 7620,
     isLiked: false,
+    isFavorited: false,
     createdAt: "2024-08-12T12:30:00Z",
     tags: ["running", "mental-health", "journey"],
     storyData: {

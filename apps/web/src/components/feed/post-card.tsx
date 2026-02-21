@@ -8,6 +8,8 @@ import {
   MessageCircle,
   Share2,
   Bookmark,
+  Star,
+  Eye,
   MoreHorizontal,
   BadgeCheck,
   Clock,
@@ -250,6 +252,7 @@ export function PostCard({ post, onLike }: PostCardProps) {
   const [isLiked, setIsLiked] = useState(post.isLiked);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(post.isFavorited);
   const [isAnimatingLike, setIsAnimatingLike] = useState(false);
   const { toggleLike } = useLike();
 
@@ -393,6 +396,14 @@ export function PostCard({ post, onLike }: PostCardProps) {
         )}
       </div>
 
+      {/* ── Views ───────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1.5 px-4 pb-2">
+        <Eye className="w-3.5 h-3.5 text-lion-gray-2" />
+        <span className="text-xs text-lion-gray-2">
+          {formatCount(post.views)} views
+        </span>
+      </div>
+
       {/* ── Action Bar ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 border-t border-lion-gold/5">
         <div className="flex items-center gap-5">
@@ -434,19 +445,35 @@ export function PostCard({ post, onLike }: PostCardProps) {
           </button>
         </div>
 
-        {/* Bookmark */}
-        <button
-          onClick={() => setIsBookmarked(!isBookmarked)}
-          className="group"
-        >
-          <Bookmark
-            className={`w-5 h-5 transition-all duration-200 ${
-              isBookmarked
-                ? "text-lion-gold fill-lion-gold"
-                : "text-lion-gray-3 group-hover:text-lion-gold"
-            }`}
-          />
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Favorite */}
+          <button
+            onClick={() => setIsFavorited(!isFavorited)}
+            className="group"
+          >
+            <Star
+              className={`w-5 h-5 transition-all duration-200 ${
+                isFavorited
+                  ? "text-yellow-400 fill-yellow-400 scale-110"
+                  : "text-lion-gray-3 group-hover:text-yellow-400"
+              }`}
+            />
+          </button>
+
+          {/* Bookmark */}
+          <button
+            onClick={() => setIsBookmarked(!isBookmarked)}
+            className="group"
+          >
+            <Bookmark
+              className={`w-5 h-5 transition-all duration-200 ${
+                isBookmarked
+                  ? "text-lion-gold fill-lion-gold"
+                  : "text-lion-gray-3 group-hover:text-lion-gold"
+              }`}
+            />
+          </button>
+        </div>
       </div>
     </article>
   );
