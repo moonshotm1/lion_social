@@ -7,7 +7,11 @@ const isDemoMode =
   !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.DATABASE_URL;
 
 const handler = async (req: Request) => {
+  const url = new URL(req.url);
+  console.log(`[tRPC] ${req.method} ${url.pathname}`);
+
   if (isDemoMode) {
+    console.log("[tRPC] Running in demo mode — no Supabase/DB configured");
     return new Response(
       JSON.stringify({
         error: "Backend not configured. Running in demo mode.",
@@ -16,70 +20,75 @@ const handler = async (req: Request) => {
     );
   }
 
-  return fetchRequestHandler({
-    endpoint: "/api/trpc",
-    req,
-    router: appRouter,
-    onError({ error, path }) {
-      console.error(`[tRPC] Error on ${path ?? "unknown"}:`, error);
-    },
-    createContext: async () => {
-      // Wrap entirely so a Supabase/DB hiccup never causes an HTML 500 response.
-      // If anything fails, we return an unauthenticated context and let the
-      // individual procedures handle auth requirements via TRPCError.
-      try {
-        const supabase = await createSupabaseServerClient();
-        const {
-          data: { user: supabaseUser },
-          error: authError,
-        } = await supabase.auth.getUser();
+  try {
+    return await fetchRequestHandler({
+      endpoint: "/api/trpc",
+      req,
+      router: appRouter,
+      onError({ error, path }) {
+        console.error(`[tRPC] Procedure error on "${path ?? "unknown"}":`, error.message);
+      },
+      createContext: async () => {
+        try {
+          const supabase = await createSupabaseServerClient();
+          const {
+            data: { user: supabaseUser },
+            error: authError,
+          } = await supabase.auth.getUser();
 
-        if (authError) {
-          console.error("[tRPC] Supabase getUser error:", authError.message);
-          return createContext({ prisma, userId: null });
-        }
-
-        let userId: string | null = null;
-        if (supabaseUser) {
-          let user = await prisma.user.findUnique({
-            where: { supabaseId: supabaseUser.id },
-            select: { id: true },
-          });
-
-          // Auto-create profile on first authenticated request if it doesn't exist
-          if (!user) {
-            const base =
-              supabaseUser.user_metadata?.username ||
-              supabaseUser.email?.split("@")[0] ||
-              `user_${supabaseUser.id.slice(0, 8)}`;
-            let username = base as string;
-            // If username is taken, fall back to a unique handle
-            const existing = await prisma.user.findUnique({ where: { username } });
-            if (existing) username = `user_${supabaseUser.id.slice(0, 8)}`;
-            try {
-              user = await prisma.user.create({
-                data: { supabaseId: supabaseUser.id, username },
-                select: { id: true },
-              });
-            } catch {
-              // Race condition: another request created it first — just look it up
-              user = await prisma.user.findUnique({
-                where: { supabaseId: supabaseUser.id },
-                select: { id: true },
-              });
-            }
+          if (authError) {
+            console.error("[tRPC] Supabase getUser error:", authError.message);
+            return createContext({ prisma, userId: null });
           }
 
-          userId = user?.id ?? null;
-        }
+          let userId: string | null = null;
+          if (supabaseUser) {
+            let user = await prisma.user.findUnique({
+              where: { supabaseId: supabaseUser.id },
+              select: { id: true },
+            });
 
-        return createContext({ prisma, userId });
-      } catch (err) {
-        console.error("[tRPC] createContext error:", err);
-        return createContext({ prisma, userId: null });
-      }
-    },
-  });
+            if (!user) {
+              const base =
+                supabaseUser.user_metadata?.username ||
+                supabaseUser.email?.split("@")[0] ||
+                `user_${supabaseUser.id.slice(0, 8)}`;
+              let username = base as string;
+              const existing = await prisma.user.findUnique({ where: { username } });
+              if (existing) username = `user_${supabaseUser.id.slice(0, 8)}`;
+              try {
+                user = await prisma.user.create({
+                  data: { supabaseId: supabaseUser.id, username },
+                  select: { id: true },
+                });
+                console.log("[tRPC] Auto-created user profile:", username);
+              } catch {
+                user = await prisma.user.findUnique({
+                  where: { supabaseId: supabaseUser.id },
+                  select: { id: true },
+                });
+              }
+            }
+
+            userId = user?.id ?? null;
+            console.log("[tRPC] Resolved userId:", userId ?? "(unauthenticated)");
+          }
+
+          return createContext({ prisma, userId });
+        } catch (err) {
+          console.error("[tRPC] createContext threw:", err);
+          return createContext({ prisma, userId: null });
+        }
+      },
+    });
+  } catch (err) {
+    // fetchRequestHandler itself threw — return JSON so the client never sees HTML
+    console.error("[tRPC] fetchRequestHandler threw:", err);
+    return new Response(
+      JSON.stringify([{ error: { message: String(err), code: -32603 } }]),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
 };
 
 export { handler as GET, handler as POST };
