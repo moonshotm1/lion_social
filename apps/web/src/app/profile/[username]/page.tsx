@@ -6,23 +6,16 @@ import Link from "next/link";
 import {
   ArrowLeft,
   BadgeCheck,
-  MapPin,
-  LinkIcon,
-  Calendar,
   Grid3X3,
   Heart,
   Bookmark,
   MoreHorizontal,
-  Crown,
-  Flame,
-  Trophy,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { formatCount } from "@/lib/types";
-import { mockPosts } from "@/lib/mock-data";
 
 type ProfileTab = "posts" | "likes" | "saved";
 
@@ -36,14 +29,26 @@ export default function ProfilePage({
   const [isFollowing, setIsFollowing] = useState(false);
 
   // Resolve the "me" alias to the current user's real username
-  const { user: currentUser } = useCurrentUser();
+  const { user: currentUser, isLoading: currentUserLoading } = useCurrentUser();
   useEffect(() => {
     if (params.username === "me" && currentUser?.username) {
       router.replace(`/profile/${currentUser.username}`);
     }
   }, [params.username, currentUser?.username]);
 
-  const { user: profileUser, posts: userPosts, isLoading } = useUserProfile(params.username);
+  const { user: profileUser, posts: userPosts, isLoading } = useUserProfile(
+    params.username === "me" ? "" : params.username
+  );
+
+  // While resolving "me" alias, show loading
+  if (params.username === "me" && currentUserLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 rounded-full border-2 border-lion-gold border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
   const user = profileUser ?? {
     id: "",
     username: params.username,
@@ -55,9 +60,6 @@ export default function ProfilePage({
     posts: 0,
     isVerified: false,
   };
-
-  // Fill grid with all posts if user has few posts
-  const gridPosts = userPosts.length > 0 ? userPosts : mockPosts.slice(0, 6);
 
   return (
     <div className="space-y-0 animate-fade-in -mx-4 -mt-6">
@@ -147,22 +149,6 @@ export default function ProfilePage({
         {/* Bio */}
         <p className="text-sm text-lion-gray-5 leading-relaxed">{user.bio}</p>
 
-        {/* Meta info */}
-        <div className="flex flex-wrap items-center gap-4 text-xs text-lion-gray-3">
-          <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5" />
-            Los Angeles, CA
-          </span>
-          <span className="flex items-center gap-1">
-            <LinkIcon className="w-3.5 h-3.5" />
-            <span className="text-lion-gold">gains.app/{user.username}</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5" />
-            Joined March 2024
-          </span>
-        </div>
-
         {/* Stats */}
         <div className="flex items-center gap-6">
           <div className="text-center">
@@ -187,27 +173,6 @@ export default function ProfilePage({
           </div>
         </div>
 
-        {/* Achievements */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-lion-gold/10 border border-lion-gold/20">
-            <Crown className="w-3.5 h-3.5 text-lion-gold" />
-            <span className="text-xs font-semibold text-lion-gold">
-              Top Performer
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-400/10 border border-orange-400/20">
-            <Flame className="w-3.5 h-3.5 text-orange-400" />
-            <span className="text-xs font-semibold text-orange-400">
-              30-Day Streak
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-400/10 border border-purple-400/20">
-            <Trophy className="w-3.5 h-3.5 text-purple-400" />
-            <span className="text-xs font-semibold text-purple-400">
-              Top Creator
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Tab Bar */}
@@ -241,8 +206,14 @@ export default function ProfilePage({
       </div>
 
       {/* Post Grid */}
+      {userPosts.length === 0 && !isLoading && (
+        <div className="flex flex-col items-center justify-center py-16 text-lion-gray-3 gap-3">
+          <Grid3X3 className="w-10 h-10 opacity-30" />
+          <p className="text-sm">No posts yet</p>
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-0.5 px-0">
-        {gridPosts.map((post) => (
+        {userPosts.map((post) => (
           <div
             key={post.id}
             className="relative aspect-square bg-lion-dark-2 cursor-pointer group overflow-hidden"

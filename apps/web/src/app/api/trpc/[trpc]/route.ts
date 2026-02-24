@@ -3,20 +3,22 @@ import { appRouter, createContext } from "@lion/api";
 import { prisma } from "@lion/database";
 import { createSupabaseServerClient } from "@/lib/supabase";
 
-const isDemoMode =
-  !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.DATABASE_URL;
+const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 const handler = async (req: Request) => {
   const url = new URL(req.url);
   console.log(`[tRPC] ${req.method} ${url.pathname}`);
 
   if (isDemoMode) {
-    console.log("[tRPC] Running in demo mode — no Supabase/DB configured");
+    console.log("[tRPC] Running in demo mode — no Supabase configured");
+    const demoError = {
+      message: "Backend not configured. Running in demo mode.",
+      code: -32603,
+      data: { code: "INTERNAL_SERVER_ERROR", httpStatus: 503 },
+    };
     return new Response(
-      JSON.stringify({
-        error: "Backend not configured. Running in demo mode.",
-      }),
-      { status: 503, headers: { "Content-Type": "application/json" } }
+      JSON.stringify([{ error: { json: demoError, meta: {} } }]),
+      { status: 200, headers: { "Content-Type": "application/json" } }
     );
   }
 

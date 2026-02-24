@@ -21,7 +21,7 @@ function useUserProfileDemo(username: string): UseUserProfileResult {
 }
 
 function useUserProfileReal(username: string): UseUserProfileResult {
-  const userQuery = trpc.user.byUsername.useQuery({ username });
+  const userQuery = trpc.user.byUsername.useQuery({ username }, { enabled: !!username });
   const user = userQuery.data ? transformUser(userQuery.data) : null;
 
   const postsQuery = trpc.post.byUser.useQuery(
