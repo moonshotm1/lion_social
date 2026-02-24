@@ -11,6 +11,7 @@ import {
   User,
   Crown,
   LogOut,
+  LogIn,
   Settings,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -124,18 +125,30 @@ export function Sidebar() {
 
       {/* Bottom section */}
       <div className="p-3 space-y-1">
-        <Link
-          href="/settings"
-          className="flex items-center gap-4 px-4 py-3 rounded-xl text-lion-gray-3 hover:text-lion-white hover:bg-lion-dark-3 transition-all duration-200"
-        >
-          <Settings className="w-5 h-5" />
-          <span className="text-sm font-medium">Settings</span>
-        </Link>
+        {user && (
+          <Link
+            href="/settings"
+            className="flex items-center gap-4 px-4 py-3 rounded-xl text-lion-gray-3 hover:text-lion-white hover:bg-lion-dark-3 transition-all duration-200"
+          >
+            <Settings className="w-5 h-5" />
+            <span className="text-sm font-medium">Settings</span>
+          </Link>
+        )}
 
-        <button onClick={handleSignOut} className="flex items-center gap-4 px-4 py-3 rounded-xl text-lion-gray-3 hover:text-red-400 hover:bg-red-400/5 transition-all duration-200 w-full">
-          <LogOut className="w-5 h-5" />
-          <span className="text-sm font-medium">Log out</span>
-        </button>
+        {user ? (
+          <button onClick={handleSignOut} className="flex items-center gap-4 px-4 py-3 rounded-xl text-lion-gray-3 hover:text-red-400 hover:bg-red-400/5 transition-all duration-200 w-full">
+            <LogOut className="w-5 h-5" />
+            <span className="text-sm font-medium">Log out</span>
+          </button>
+        ) : (
+          <Link
+            href="/sign-in"
+            className="flex items-center gap-4 px-4 py-3 rounded-xl text-lion-gray-3 hover:text-lion-gold hover:bg-lion-gold/5 transition-all duration-200"
+          >
+            <LogIn className="w-5 h-5" />
+            <span className="text-sm font-medium">Sign in</span>
+          </Link>
+        )}
       </div>
 
       {/* User card */}

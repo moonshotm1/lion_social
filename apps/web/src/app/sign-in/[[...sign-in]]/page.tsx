@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Crown, Eye, EyeOff, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { isClientDemoMode } from "@/lib/env-client";
@@ -28,7 +28,6 @@ function DemoSignIn() {
 }
 
 function SupabaseSignIn() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect_to") || "/";
 
@@ -61,8 +60,9 @@ function SupabaseSignIn() {
       // Ensure a DB profile exists for this user (creates one if missing)
       await fetch("/api/auth/ensure-profile", { method: "POST" });
 
-      router.push(redirectTo);
-      router.refresh();
+      // Full-page navigation so the browser sends fresh session cookies on the
+      // next request and the middleware picks up the auth state correctly.
+      window.location.href = redirectTo;
     } catch {
       setError("An unexpected error occurred. Please try again.");
       setIsLoading(false);
