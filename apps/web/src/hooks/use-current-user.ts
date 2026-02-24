@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockUsers } from "@/lib/mock-data";
 import type { MockUser } from "@/lib/types";
@@ -28,6 +29,16 @@ function useCurrentUserReal(): UseCurrentUserResult {
     { supabaseId: supabaseUser?.id ?? "" },
     { enabled: !!supabaseUser?.id }
   );
+
+  // If signed in but no DB profile exists yet, call ensure-profile to create it
+  // then refetch. This handles the case where the tRPC context didn't create it.
+  useEffect(() => {
+    if (supabaseUser && dbUserQuery.isSuccess && !dbUserQuery.data) {
+      fetch("/api/auth/ensure-profile", { method: "POST" })
+        .then(() => dbUserQuery.refetch())
+        .catch(() => {});
+    }
+  }, [supabaseUser, dbUserQuery.isSuccess, dbUserQuery.data]);
 
   const user = dbUserQuery.data ? transformUser(dbUserQuery.data) : null;
 

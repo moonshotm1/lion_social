@@ -26,7 +26,7 @@ const staticNavItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useCurrentUser();
+  const { user, isSignedIn } = useCurrentUser();
   const profileHref = user ? `/profile/${user.username}` : "/profile/me";
   const navItems = [
     ...staticNavItems,
@@ -125,7 +125,7 @@ export function Sidebar() {
 
       {/* Bottom section */}
       <div className="p-3 space-y-1">
-        {user && (
+        {isSignedIn && (
           <Link
             href="/settings"
             className="flex items-center gap-4 px-4 py-3 rounded-xl text-lion-gray-3 hover:text-lion-white hover:bg-lion-dark-3 transition-all duration-200"
@@ -135,7 +135,7 @@ export function Sidebar() {
           </Link>
         )}
 
-        {user ? (
+        {isSignedIn ? (
           <button onClick={handleSignOut} className="flex items-center gap-4 px-4 py-3 rounded-xl text-lion-gray-3 hover:text-red-400 hover:bg-red-400/5 transition-all duration-200 w-full">
             <LogOut className="w-5 h-5" />
             <span className="text-sm font-medium">Log out</span>
