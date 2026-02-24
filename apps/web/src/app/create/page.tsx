@@ -1099,7 +1099,7 @@ function StoryForm({
 
 export default function CreatePage() {
   // ── Auth ──
-  const { user, isLoading: userLoading } = useCurrentUser();
+  const { user, isSignedIn, isLoading: userLoading } = useCurrentUser();
 
   // ── Common ──
   const { createPost, isLoading: isSubmitting, error: postError } = useCreatePost();
@@ -1257,7 +1257,7 @@ export default function CreatePage() {
     );
   }
 
-  if (!user) {
+  if (!isSignedIn) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
         <Crown className="w-12 h-12 text-lion-gold/40" />

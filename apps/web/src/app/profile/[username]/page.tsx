@@ -17,7 +17,10 @@ import {
   Flame,
   Trophy,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useUserProfile } from "@/hooks/use-user-profile";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { formatCount } from "@/lib/types";
 import { mockPosts } from "@/lib/mock-data";
 
@@ -28,8 +31,17 @@ export default function ProfilePage({
 }: {
   params: { username: string };
 }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [isFollowing, setIsFollowing] = useState(false);
+
+  // Resolve the "me" alias to the current user's real username
+  const { user: currentUser } = useCurrentUser();
+  useEffect(() => {
+    if (params.username === "me" && currentUser?.username) {
+      router.replace(`/profile/${currentUser.username}`);
+    }
+  }, [params.username, currentUser?.username]);
 
   const { user: profileUser, posts: userPosts, isLoading } = useUserProfile(params.username);
   const user = profileUser ?? {
