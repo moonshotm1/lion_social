@@ -25,7 +25,7 @@ function useExploreDemo(): UseExploreResult {
 
 function useExploreReal(): UseExploreResult {
   const trendingQuery = trpc.post.trending.useQuery({ limit: 20 });
-  const trendingPosts = (trendingQuery.data ?? []).map(transformPost);
+  const trendingPosts = (Array.isArray(trendingQuery.data) ? trendingQuery.data : []).map(transformPost);
 
   // Extract unique authors from trending posts as featured users
   const featuredUsers = Array.from(

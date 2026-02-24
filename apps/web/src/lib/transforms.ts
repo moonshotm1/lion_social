@@ -22,11 +22,37 @@ export function transformPost(apiPost: any): MockPost {
     views: 0,
     isLiked: false,
     isFavorited: false,
-    tags: metadata.tags ?? [],
-    workoutData: apiPost.type === "workout" ? metadata : undefined,
-    mealData: apiPost.type === "meal" ? metadata : undefined,
+    tags: Array.isArray(metadata.tags) ? metadata.tags : [],
+    workoutData:
+      apiPost.type === "workout"
+        ? {
+            ...metadata,
+            exercises: Array.isArray(metadata.exercises)
+              ? metadata.exercises.map((ex: any) => ({
+                  ...ex,
+                  sets: Array.isArray(ex?.sets) ? ex.sets : [],
+                }))
+              : [],
+          }
+        : undefined,
+    mealData:
+      apiPost.type === "meal"
+        ? {
+            ...metadata,
+            ingredients: Array.isArray(metadata.ingredients)
+              ? metadata.ingredients
+              : [],
+            macros: metadata.macros ?? { calories: 0, protein: 0, carbs: 0, fat: 0 },
+          }
+        : undefined,
     quoteData: apiPost.type === "quote" ? metadata : undefined,
-    storyData: apiPost.type === "story" ? metadata : undefined,
+    storyData:
+      apiPost.type === "story"
+        ? {
+            ...metadata,
+            tags: Array.isArray(metadata.tags) ? metadata.tags : [],
+          }
+        : undefined,
   };
 }
 

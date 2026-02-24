@@ -26,7 +26,9 @@ import { useLike } from "@/hooks/use-like";
 // ─── Helper: calculate total volume ────────────────────────────────────────
 
 function calcTotalVolume(workout: WorkoutData): number {
+  if (!Array.isArray(workout.exercises)) return 0;
   return workout.exercises.reduce((total, exercise) => {
+    if (!Array.isArray(exercise.sets)) return total;
     return (
       total +
       exercise.sets.reduce((exTotal, set) => {
@@ -39,6 +41,7 @@ function calcTotalVolume(workout: WorkoutData): number {
 // ─── Helper: format set summary ────────────────────────────────────────────
 
 function formatSetSummary(exercise: { name: string; sets: { reps: number; weight: number; unit: "lbs" | "kg" }[] }): string {
+  if (!exercise.sets || exercise.sets.length === 0) return "";
   const setCount = exercise.sets.length;
   const reps = exercise.sets[0].reps;
   const weight = exercise.sets[0].weight;

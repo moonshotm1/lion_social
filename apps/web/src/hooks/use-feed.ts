@@ -36,7 +36,9 @@ function useFeedReal(filter?: PostType | "all"): UseFeedResult {
   );
 
   const allPosts =
-    query.data?.pages.flatMap((p) => p.posts.map(transformPost)) ?? [];
+    query.data?.pages.flatMap((p) =>
+      Array.isArray(p.posts) ? p.posts.map(transformPost) : []
+    ) ?? [];
   const filtered =
     !filter || filter === "all"
       ? allPosts

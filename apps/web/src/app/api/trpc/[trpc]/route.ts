@@ -82,10 +82,12 @@ const handler = async (req: Request) => {
       },
     });
   } catch (err) {
-    // fetchRequestHandler itself threw — return JSON so the client never sees HTML
+    // fetchRequestHandler itself threw — return JSON so the client never sees HTML.
+    // Wrap in superjson format ({ json, meta }) so the tRPC client transformer can parse it.
     console.error("[tRPC] fetchRequestHandler threw:", err);
+    const errObj = { message: String(err), code: -32603, data: { code: "INTERNAL_SERVER_ERROR", httpStatus: 500 } };
     return new Response(
-      JSON.stringify([{ error: { message: String(err), code: -32603 } }]),
+      JSON.stringify([{ error: { json: errObj, meta: {} } }]),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }

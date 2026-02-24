@@ -28,7 +28,7 @@ function useUserProfileReal(username: string): UseUserProfileResult {
     { userId: userQuery.data?.id ?? "" },
     { enabled: !!userQuery.data?.id }
   );
-  const posts = postsQuery.data?.posts.map(transformPost) ?? [];
+  const posts = (Array.isArray(postsQuery.data?.posts) ? postsQuery.data!.posts : []).map(transformPost);
 
   return {
     user,

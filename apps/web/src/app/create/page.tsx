@@ -21,9 +21,11 @@ import {
   Beef,
   Wheat,
   Droplets,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
 import { useCreatePost } from "@/hooks/use-create-post";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1096,6 +1098,9 @@ function StoryForm({
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function CreatePage() {
+  // ── Auth ──
+  const { user, isLoading: userLoading } = useCurrentUser();
+
   // ── Common ──
   const { createPost, isLoading: isSubmitting, error: postError } = useCreatePost();
   const [selectedType, setSelectedType] = useState<PostType | null>(null);
@@ -1242,6 +1247,30 @@ export default function CreatePage() {
         return null;
     }
   })();
+
+  // ── Auth gate ──
+  if (userLoading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="w-8 h-8 rounded-full border-2 border-lion-gold/30 border-t-lion-gold animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
+        <Crown className="w-12 h-12 text-lion-gold/40" />
+        <h2 className="text-lg font-semibold text-lion-white">Sign in to create posts</h2>
+        <p className="text-sm text-lion-gray-3 max-w-xs">
+          Join the community to share your workouts, meals, quotes and stories.
+        </p>
+        <Link href="/sign-in" className="btn-gold px-6 py-2.5 text-sm">
+          Sign In
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in pb-8">

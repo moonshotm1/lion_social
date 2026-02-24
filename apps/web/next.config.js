@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: ["192.168.1.33"],
   transpilePackages: ["@lion/ui", "@lion/types", "@lion/api", "@lion/database"],
   images: {
     remotePatterns: [
