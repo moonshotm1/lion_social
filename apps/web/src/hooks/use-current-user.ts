@@ -27,7 +27,7 @@ function useCurrentUserReal(): UseCurrentUserResult {
   const { user: supabaseUser, isLoading: authLoading } = useAuth();
   const dbUserQuery = trpc.user.bySupabaseId.useQuery(
     { supabaseId: supabaseUser?.id ?? "" },
-    { enabled: !!supabaseUser?.id }
+    { enabled: !!supabaseUser?.id, retry: false }
   );
 
   // If signed in but no DB profile exists yet, call ensure-profile to create it
