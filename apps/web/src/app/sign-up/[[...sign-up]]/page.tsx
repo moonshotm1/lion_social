@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Crown, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Crown, Eye, EyeOff, Loader2, Ticket } from "lucide-react";
 import Link from "next/link";
 import { isClientDemoMode } from "@/lib/env-client";
 
@@ -27,9 +27,11 @@ function DemoSignUp() {
   );
 }
 
-function SupabaseSignUp() {
+function SupabaseSignUpInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
+  const [inviteCode, setInviteCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -38,10 +40,24 @@ function SupabaseSignUp() {
   const [isLoading, setIsLoading] = useState(false);
   const [isConfirmation, setIsConfirmation] = useState(false);
 
+  // Pre-fill invite code from URL param
+  useEffect(() => {
+    const code = searchParams.get("invite");
+    if (code) setInviteCode(code.toUpperCase());
+  }, [searchParams]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
+
+    const code = inviteCode.trim().toUpperCase();
+
+    if (!code) {
+      setError("An invite code is required to join Gains.");
+      setIsLoading(false);
+      return;
+    }
 
     if (username.length < 3 || username.length > 30) {
       setError("Username must be between 3 and 30 characters.");
@@ -57,15 +73,27 @@ function SupabaseSignUp() {
     }
 
     try {
+      // 1. Validate invite code before creating account
+      const validateRes = await fetch(
+        `/api/invite/validate?code=${encodeURIComponent(code)}`
+      );
+      const validateData = await validateRes.json();
+      if (!validateData.valid) {
+        setError(validateData.error ?? "Invalid invite code.");
+        setIsLoading(false);
+        return;
+      }
+
       const { createSupabaseBrowserClient } = await import("@/lib/supabase");
       const supabase = createSupabaseBrowserClient();
 
+      // 2. Create Supabase auth account
       const { data: authData, error: authError } =
         await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: `${window.location.origin}/auth/callback?invite=${encodeURIComponent(code)}`,
             data: { username },
           },
         });
@@ -89,9 +117,14 @@ function SupabaseSignUp() {
         return;
       }
 
-      // No email confirmation — create user profile immediately
+      // No email confirmation — create user profile and consume invite
       if (authData.user) {
         await fetch("/api/auth/ensure-profile", { method: "POST" });
+        await fetch("/api/invite/use", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
       }
 
       router.push("/");
@@ -136,11 +169,36 @@ function SupabaseSignUp() {
             Create your account
           </h2>
           <p className="text-sm text-lion-gray-3 mt-1">
-            Join the community and start your journey
+            Gains is invite-only. Enter your code to join.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Invite code field */}
+          <div>
+            <label
+              htmlFor="inviteCode"
+              className="block text-sm font-medium text-lion-gray-4 mb-1.5"
+            >
+              Invite code
+            </label>
+            <div className="relative">
+              <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-lion-gold" />
+              <input
+                id="inviteCode"
+                type="text"
+                value={inviteCode}
+                onChange={(e) =>
+                  setInviteCode(e.target.value.toUpperCase())
+                }
+                required
+                placeholder="XXXXXXXX"
+                maxLength={16}
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-lion-dark-2 border border-lion-gold/30 text-lion-gold placeholder:text-lion-gray-3 focus:outline-none focus:border-lion-gold/60 focus:ring-1 focus:ring-lion-gold/30 transition-colors font-mono tracking-widest uppercase"
+              />
+            </div>
+          </div>
+
           <div>
             <label
               htmlFor="username"
@@ -253,6 +311,14 @@ function SupabaseSignUp() {
         </p>
       </div>
     </div>
+  );
+}
+
+function SupabaseSignUp() {
+  return (
+    <Suspense fallback={null}>
+      <SupabaseSignUpInner />
+    </Suspense>
   );
 }
 

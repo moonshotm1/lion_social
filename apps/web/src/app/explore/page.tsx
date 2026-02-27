@@ -120,10 +120,11 @@ export default function ExplorePage() {
         {/* Trending Post Grid */}
         <div className="grid grid-cols-2 gap-2">
           {filteredPosts.slice(0, 4).map((post, index) => (
-            <div
+            <Link
               key={post.id}
+              href={`/post/${post.id}`}
               className={`
-                relative overflow-hidden rounded-xl bg-lion-dark-2 cursor-pointer group
+                relative overflow-hidden rounded-xl bg-lion-dark-2 cursor-pointer group block
                 ${index === 0 ? "col-span-2 aspect-[2/1]" : "aspect-square"}
               `}
             >
@@ -173,7 +174,7 @@ export default function ExplorePage() {
                   </span>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>

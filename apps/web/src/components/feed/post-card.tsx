@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Heart,
   MessageCircle,
   Share2,
-  Bookmark,
   Star,
   Eye,
   MoreHorizontal,
@@ -22,6 +22,7 @@ import {
 import type { MockPost, WorkoutData, MealData, QuoteData, StoryData } from "@/lib/types";
 import { getTimeAgo, formatCount, postTypeConfig } from "@/lib/types";
 import { useLike } from "@/hooks/use-like";
+import { useSave } from "@/hooks/use-save";
 
 // ─── Helper: calculate total volume ────────────────────────────────────────
 
@@ -204,10 +205,10 @@ function QuoteContent({ data }: { data: QuoteData }) {
 
 // ─── Story Content ─────────────────────────────────────────────────────────
 
-function StoryContent({ data }: { data: StoryData }) {
+function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean }) {
   const previewLength = 200;
   const isLong = data.content.length > previewLength;
-  const preview = isLong
+  const preview = !expanded && isLong
     ? data.content.substring(0, previewLength).trim() + "..."
     : data.content;
 
@@ -220,12 +221,10 @@ function StoryContent({ data }: { data: StoryData }) {
       </div>
 
       {/* Content preview */}
-      <p className="text-sm text-lion-gray-4 leading-relaxed">
+      <p className="text-sm text-lion-gray-4 leading-relaxed whitespace-pre-line">
         {preview}
-        {isLong && (
-          <button className="ml-1 text-lion-gold hover:text-lion-gold-light font-medium transition-colors duration-200">
-            Read more
-          </button>
+        {!expanded && isLong && (
+          <span className="ml-1 text-lion-gold font-medium">Read more</span>
         )}
       </p>
 
@@ -249,17 +248,39 @@ function StoryContent({ data }: { data: StoryData }) {
 interface PostCardProps {
   post: MockPost;
   onLike?: (postId: string) => void;
+  /** When true: show full story text, disable click-to-navigate (used on detail page) */
+  expanded?: boolean;
 }
 
-export function PostCard({ post, onLike }: PostCardProps) {
+export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
+  const router = useRouter();
   const [isLiked, setIsLiked] = useState(post.isLiked);
   const [likeCount, setLikeCount] = useState(post.likes);
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const [isFavorited, setIsFavorited] = useState(post.isFavorited);
+  const [isFavorited, setIsFavorited] = useState(post.isBookmarked ?? false);
+  const [favCount, setFavCount] = useState(post.favorites ?? 0);
+  const [isCopied, setIsCopied] = useState(false);
   const [isAnimatingLike, setIsAnimatingLike] = useState(false);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clickCountRef = useRef(0);
   const { toggleLike } = useLike();
+  const { toggleSave } = useSave();
 
   const typeConfig = postTypeConfig[post.type];
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/post/${post.id}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ url, title: "Check this out on Gains" });
+      } catch {
+        // user cancelled — no-op
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
 
   const handleLike = () => {
     setIsAnimatingLike(true);
@@ -270,10 +291,22 @@ export function PostCard({ post, onLike }: PostCardProps) {
     setTimeout(() => setIsAnimatingLike(false), 300);
   };
 
-  const handleDoubleClick = () => {
-    if (!isLiked) {
-      handleLike();
-    }
+  // Unified click handler for the image area.
+  // Single click → navigate to post detail (unless expanded/detail page).
+  // Double click → like animation.
+  const handleImageClick = () => {
+    clickCountRef.current += 1;
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = setTimeout(() => {
+      const count = clickCountRef.current;
+      clickCountRef.current = 0;
+      clickTimerRef.current = null;
+      if (count >= 2) {
+        if (!isLiked) handleLike();
+      } else if (!expanded) {
+        router.push(`/post/${post.id}`);
+      }
+    }, 230);
   };
 
   // Determine if we show the image above type-specific content
@@ -345,7 +378,7 @@ export function PostCard({ post, onLike }: PostCardProps) {
       {showImage && (
         <div
           className="relative aspect-[4/3] bg-lion-dark-2 cursor-pointer"
-          onDoubleClick={handleDoubleClick}
+          onClick={handleImageClick}
         >
           <Image
             src={post.image!}
@@ -375,11 +408,14 @@ export function PostCard({ post, onLike }: PostCardProps) {
         <QuoteContent data={post.quoteData} />
       )}
       {post.type === "story" && post.storyData && (
-        <StoryContent data={post.storyData} />
+        <StoryContent data={post.storyData} expanded={expanded} />
       )}
 
       {/* ── Caption ─────────────────────────────────────────────────────── */}
-      <div className="px-4 pt-2 pb-2">
+      <div
+        className={`px-4 pt-2 pb-2 ${!expanded ? "cursor-pointer" : ""}`}
+        onClick={!expanded ? () => router.push(`/post/${post.id}`) : undefined}
+      >
         <p className="text-sm text-lion-gray-5 leading-relaxed whitespace-pre-line">
           {post.caption}
         </p>
@@ -440,19 +476,32 @@ export function PostCard({ post, onLike }: PostCardProps) {
           </button>
 
           {/* Share */}
-          <button className="flex items-center gap-1.5 group">
-            <Share2 className="w-5 h-5 text-lion-gray-3 group-hover:text-lion-white transition-colors duration-200" />
-            <span className="text-xs font-medium text-lion-gray-3 group-hover:text-lion-white transition-colors duration-200">
-              {formatCount(post.shares)}
+          <button onClick={handleShare} className="flex items-center gap-1.5 group">
+            <Share2
+              className={`w-5 h-5 transition-colors duration-200 ${
+                isCopied ? "text-lion-gold" : "text-lion-gray-3 group-hover:text-lion-white"
+              }`}
+            />
+            <span
+              className={`text-xs font-medium transition-colors duration-200 ${
+                isCopied ? "text-lion-gold" : "text-lion-gray-3 group-hover:text-lion-white"
+              }`}
+            >
+              {isCopied ? "Copied!" : formatCount(post.shares)}
             </span>
           </button>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Favorite */}
+          {/* Favorite / Save */}
           <button
-            onClick={() => setIsFavorited(!isFavorited)}
-            className="group"
+            onClick={() => {
+              const next = !isFavorited;
+              setIsFavorited(next);
+              setFavCount((prev) => (next ? prev + 1 : prev - 1));
+              toggleSave(post.id);
+            }}
+            className="flex items-center gap-1.5 group"
           >
             <Star
               className={`w-5 h-5 transition-all duration-200 ${
@@ -461,20 +510,13 @@ export function PostCard({ post, onLike }: PostCardProps) {
                   : "text-lion-gray-3 group-hover:text-yellow-400"
               }`}
             />
-          </button>
-
-          {/* Bookmark */}
-          <button
-            onClick={() => setIsBookmarked(!isBookmarked)}
-            className="group"
-          >
-            <Bookmark
-              className={`w-5 h-5 transition-all duration-200 ${
-                isBookmarked
-                  ? "text-lion-gold fill-lion-gold"
-                  : "text-lion-gray-3 group-hover:text-lion-gold"
+            <span
+              className={`text-xs font-medium ${
+                isFavorited ? "text-yellow-400" : "text-lion-gray-3"
               }`}
-            />
+            >
+              {formatCount(favCount)}
+            </span>
           </button>
         </div>
       </div>

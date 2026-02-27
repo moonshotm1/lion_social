@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 
+
 export const likeRouter = router({
   /**
    * Toggle a like on a post.
@@ -47,16 +48,40 @@ export const likeRouter = router({
         where: { postId: input.postId },
         include: {
           user: {
-            select: {
-              id: true,
-              username: true,
-              avatarUrl: true,
-            },
+            select: { id: true, username: true, avatarUrl: true },
           },
         },
         orderBy: { createdAt: "desc" },
       });
 
       return likes;
+    }),
+
+  /**
+   * Get all posts liked by a specific user.
+   */
+  byUser: protectedProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const likes = await ctx.prisma.like.findMany({
+        where: { userId: input.userId },
+        orderBy: { createdAt: "desc" },
+        include: {
+          post: {
+            include: {
+              user: true,
+              likes: ctx.userId
+                ? { where: { userId: ctx.userId }, select: { id: true } }
+                : false,
+              saves: ctx.userId
+                ? { where: { userId: ctx.userId }, select: { id: true } }
+                : false,
+              _count: { select: { likes: true, comments: true, saves: true } },
+            },
+          },
+        },
+      });
+
+      return likes.map((l) => l.post);
     }),
 });

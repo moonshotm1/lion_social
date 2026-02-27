@@ -1,6 +1,15 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 
+/** Returns a filtered like/save include so the client knows if the current user reacted */
+function userReactions(userId: string | null) {
+  if (!userId) return {};
+  return {
+    likes: { where: { userId }, select: { id: true } },
+    saves: { where: { userId }, select: { id: true } },
+  };
+}
+
 export const postRouter = router({
   /**
    * Infinite-scroll feed with cursor-based pagination.
@@ -27,10 +36,12 @@ export const postRouter = router({
         orderBy: { createdAt: "desc" },
         include: {
           user: true,
+          ...userReactions(ctx.userId),
           _count: {
             select: {
               likes: true,
               comments: true,
+              saves: true,
             },
           },
         },
@@ -49,7 +60,7 @@ export const postRouter = router({
     }),
 
   /**
-   * Get a single post by its ID, including user, likes, and comments.
+   * Get a single post by its ID, including user, likes, saves, and comments.
    */
   byId: publicProcedure
     .input(z.object({ id: z.string() }))
@@ -58,7 +69,7 @@ export const postRouter = router({
         where: { id: input.id },
         include: {
           user: true,
-          likes: true,
+          ...userReactions(ctx.userId),
           comments: {
             include: {
               user: {
@@ -75,12 +86,26 @@ export const postRouter = router({
             select: {
               likes: true,
               comments: true,
+              saves: true,
             },
           },
         },
       });
 
       return post;
+    }),
+
+  /**
+   * Record a view for a post (increments the view counter).
+   */
+  recordView: publicProcedure
+    .input(z.object({ postId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.prisma.post.update({
+        where: { id: input.postId },
+        data: { viewCount: { increment: 1 } },
+      });
+      return { success: true };
     }),
 
   /**
@@ -109,10 +134,12 @@ export const postRouter = router({
         orderBy: { createdAt: "desc" },
         include: {
           user: true,
+          ...userReactions(ctx.userId),
           _count: {
             select: {
               likes: true,
               comments: true,
+              saves: true,
             },
           },
         },
@@ -157,6 +184,7 @@ export const postRouter = router({
             select: {
               likes: true,
               comments: true,
+              saves: true,
             },
           },
         },
@@ -222,6 +250,7 @@ export const postRouter = router({
             select: {
               likes: true,
               comments: true,
+              saves: true,
             },
           },
         },

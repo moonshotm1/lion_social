@@ -18,10 +18,13 @@ model User {
 
   posts         Post[]
   likes         Like[]
+  saves         Save[]
   comments      Comment[]
   notifications Notification[]
   followers     Follow[]       @relation("following")
   following     Follow[]       @relation("follower")
+  sentInvites   Invite[]       @relation("SentInvites")
+  receivedInvite Invite?       @relation("ReceivedInvite")
 
   @@index([supabaseId])
   @@index([username])
@@ -35,17 +38,19 @@ enum PostType {
 }
 
 model Post {
-  id        String   @id @default(cuid())
-  userId    String
-  type      PostType
-  caption   String
-  imageUrl  String?
-  metadata  Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  userId     String
+  type       PostType
+  caption    String
+  imageUrl   String?
+  metadata   Json?
+  viewCount  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   likes    Like[]
+  saves    Save[]
   comments Comment[]
 
   @@index([userId])
@@ -62,6 +67,20 @@ model Like {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([userId, postId])
+  @@index([postId])
+}
+
+model Save {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
   @@index([postId])
 }
 
@@ -97,6 +116,20 @@ enum NotificationType {
   follow
   like
   comment
+}
+
+model Invite {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  invitedById String
+  invitedBy   User      @relation("SentInvites", fields: [invitedById], references: [id], onDelete: Cascade)
+  usedById    String?   @unique
+  usedBy      User?     @relation("ReceivedInvite", fields: [usedById], references: [id], onDelete: SetNull)
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([invitedById])
+  @@index([code])
 }
 
 model Notification {

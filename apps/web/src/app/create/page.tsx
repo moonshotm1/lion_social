@@ -1113,6 +1113,7 @@ export default function CreatePage() {
   const [workoutDuration, setWorkoutDuration] = useState("");
   const [workoutCaption, setWorkoutCaption] = useState("");
   const [workoutImageUrl, setWorkoutImageUrl] = useState<string | null>(null);
+  const [workoutImageFile, setWorkoutImageFile] = useState<File | null>(null);
 
   // ── Meal state ──
   const [mealName, setMealName] = useState("");
@@ -1124,6 +1125,7 @@ export default function CreatePage() {
   const [fat, setFat] = useState("");
   const [mealCaption, setMealCaption] = useState("");
   const [mealImageUrl, setMealImageUrl] = useState<string | null>(null);
+  const [mealImageFile, setMealImageFile] = useState<File | null>(null);
 
   // ── Quote state ──
   const [quoteText, setQuoteText] = useState("");
@@ -1136,16 +1138,37 @@ export default function CreatePage() {
   const [tags, setTags] = useState<string[]>([]);
   const [storyCaption, setStoryCaption] = useState("");
   const [beforeImageUrl, setBeforeImageUrl] = useState<string | null>(null);
+  const [beforeImageFile, setBeforeImageFile] = useState<File | null>(null);
   const [afterImageUrl, setAfterImageUrl] = useState<string | null>(null);
+  const [afterImageFile, setAfterImageFile] = useState<File | null>(null);
+
+  // ── Upload state ──
+  const [isUploading, setIsUploading] = useState(false);
 
   // ── Image handlers ──
   const handleImageFile = useCallback(
-    (setter: (url: string | null) => void) => async (file: File) => {
-      const url = await readFileAsDataUrl(file);
-      setter(url);
-    },
+    (urlSetter: (url: string | null) => void, fileSetter: (file: File | null) => void) =>
+      async (file: File) => {
+        const url = await readFileAsDataUrl(file);
+        urlSetter(url);
+        fileSetter(file);
+      },
     []
   );
+
+  // Upload a file to the server and return the public URL, or null on failure
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/upload", { method: "POST", body: fd });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error("[upload] Failed:", body.error ?? res.statusText);
+      return null;
+    }
+    const { url } = await res.json();
+    return url as string;
+  };
 
   // ── Validation ──
   const isValid = (() => {
@@ -1165,21 +1188,40 @@ export default function CreatePage() {
   })();
 
   // ── Submit handler ──
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedType || !isValid) return;
+
+    setIsUploading(true);
+
+    // Upload any pending image files and get back public URLs
+    let uploadedWorkoutUrl: string | undefined;
+    let uploadedMealUrl: string | undefined;
+    let uploadedBeforeUrl: string | undefined;
+    let uploadedAfterUrl: string | undefined;
+
+    try {
+      if (selectedType === "workout" && workoutImageFile) {
+        uploadedWorkoutUrl = (await uploadImage(workoutImageFile)) ?? undefined;
+      }
+      if (selectedType === "meal" && mealImageFile) {
+        uploadedMealUrl = (await uploadImage(mealImageFile)) ?? undefined;
+      }
+      if (selectedType === "story") {
+        if (beforeImageFile) uploadedBeforeUrl = (await uploadImage(beforeImageFile)) ?? undefined;
+        if (afterImageFile) uploadedAfterUrl = (await uploadImage(afterImageFile)) ?? undefined;
+      }
+    } finally {
+      setIsUploading(false);
+    }
 
     let caption = "";
     let metadata: Record<string, unknown> = {};
-    // Exclude data: URLs — they can't be stored and would fail server validation
-    const toServerUrl = (url: string | null | undefined) =>
-      url && !url.startsWith("data:") ? url : undefined;
 
     switch (selectedType) {
       case "workout":
         caption = workoutCaption || workoutTitle;
         metadata = {
           title: workoutTitle,
-          // Only include exercises that have a name filled in
           exercises: exercises.filter((ex) => ex.name.trim().length > 0),
           duration: parseInt(workoutDuration) || 0,
         };
@@ -1204,15 +1246,21 @@ export default function CreatePage() {
         break;
       case "story":
         caption = storyCaption || storyTitle;
-        metadata = { title: storyTitle, content: storyContent, tags };
+        metadata = {
+          title: storyTitle,
+          content: storyContent,
+          tags,
+          ...(uploadedBeforeUrl && { beforeImageUrl: uploadedBeforeUrl }),
+          ...(uploadedAfterUrl && { afterImageUrl: uploadedAfterUrl }),
+        };
         break;
     }
 
     const imageUrl =
       selectedType === "workout"
-        ? toServerUrl(workoutImageUrl)
+        ? uploadedWorkoutUrl
         : selectedType === "meal"
-        ? toServerUrl(mealImageUrl)
+        ? uploadedMealUrl
         : undefined;
 
     createPost({ type: selectedType, caption, imageUrl, metadata });
@@ -1368,8 +1416,8 @@ export default function CreatePage() {
               caption={workoutCaption}
               setCaption={setWorkoutCaption}
               imageUrl={workoutImageUrl}
-              onImageSelect={handleImageFile(setWorkoutImageUrl)}
-              onImageRemove={() => setWorkoutImageUrl(null)}
+              onImageSelect={handleImageFile(setWorkoutImageUrl, setWorkoutImageFile)}
+              onImageRemove={() => { setWorkoutImageUrl(null); setWorkoutImageFile(null); }}
             />
           )}
 
@@ -1392,8 +1440,8 @@ export default function CreatePage() {
               caption={mealCaption}
               setCaption={setMealCaption}
               imageUrl={mealImageUrl}
-              onImageSelect={handleImageFile(setMealImageUrl)}
-              onImageRemove={() => setMealImageUrl(null)}
+              onImageSelect={handleImageFile(setMealImageUrl, setMealImageFile)}
+              onImageRemove={() => { setMealImageUrl(null); setMealImageFile(null); }}
             />
           )}
 
@@ -1420,10 +1468,10 @@ export default function CreatePage() {
               setCaption={setStoryCaption}
               beforeImageUrl={beforeImageUrl}
               afterImageUrl={afterImageUrl}
-              onBeforeImageSelect={handleImageFile(setBeforeImageUrl)}
-              onAfterImageSelect={handleImageFile(setAfterImageUrl)}
-              onBeforeImageRemove={() => setBeforeImageUrl(null)}
-              onAfterImageRemove={() => setAfterImageUrl(null)}
+              onBeforeImageSelect={handleImageFile(setBeforeImageUrl, setBeforeImageFile)}
+              onAfterImageSelect={handleImageFile(setAfterImageUrl, setAfterImageFile)}
+              onBeforeImageRemove={() => { setBeforeImageUrl(null); setBeforeImageFile(null); }}
+              onAfterImageRemove={() => { setAfterImageUrl(null); setAfterImageFile(null); }}
             />
           )}
         </div>
@@ -1464,18 +1512,18 @@ export default function CreatePage() {
             </Link>
             <button
               onClick={handleSubmit}
-              disabled={!isValid || isSubmitting}
+              disabled={!isValid || isSubmitting || isUploading}
               className={`
                 flex-1 py-3 rounded-xl text-sm font-semibold
                 transition-all duration-300
                 ${
-                  isValid && !isSubmitting
+                  isValid && !isSubmitting && !isUploading
                     ? "btn-gold"
                     : "bg-lion-dark-3 text-lion-gray-2 cursor-not-allowed"
                 }
               `}
             >
-              {isSubmitting ? "Posting..." : "Share Your Gains"}
+              {isUploading ? "Uploading..." : isSubmitting ? "Posting..." : "Share Your Gains"}
             </button>
           </div>
         </div>

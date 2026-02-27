@@ -31,7 +31,7 @@ function SupabaseSignIn() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect_to") || "/";
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +45,21 @@ function SupabaseSignIn() {
     try {
       const { createSupabaseBrowserClient } = await import("@/lib/supabase");
       const supabase = createSupabaseBrowserClient();
+
+      // Resolve username → email if the user didn't type an "@"
+      let email = identifier.trim();
+      if (!email.includes("@")) {
+        const res = await fetch(
+          `/api/auth/email-by-username?username=${encodeURIComponent(email.toLowerCase())}`
+        );
+        if (!res.ok) {
+          setError("No account found with that username.");
+          setIsLoading(false);
+          return;
+        }
+        const data = await res.json();
+        email = data.email;
+      }
 
       const { error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -82,19 +97,19 @@ function SupabaseSignIn() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
-              htmlFor="email"
+              htmlFor="identifier"
               className="block text-sm font-medium text-lion-gray-4 mb-1.5"
             >
-              Email address
+              Email or username
             </label>
             <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="identifier"
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
-              autoComplete="email"
-              placeholder="you@example.com"
+              autoComplete="username"
+              placeholder="you@example.com or @username"
               className="w-full px-4 py-2.5 rounded-xl bg-lion-dark-2 border border-lion-gold/10 text-lion-white placeholder:text-lion-gray-3 focus:outline-none focus:border-lion-gold/30 focus:ring-1 focus:ring-lion-gold/20 transition-colors"
             />
           </div>

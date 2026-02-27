@@ -8,14 +8,20 @@ import {
   BadgeCheck,
   Grid3X3,
   Heart,
-  Bookmark,
+  Star,
   MoreHorizontal,
+  Pencil,
+  Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { formatCount } from "@/lib/types";
+import { trpc } from "@/lib/trpc";
+import { transformPost } from "@/lib/transforms";
+import { isClientDemoMode } from "@/lib/env-client";
+import type { MockPost } from "@/lib/types";
 
 type ProfileTab = "posts" | "likes" | "saved";
 
@@ -36,9 +42,45 @@ export default function ProfilePage({
     }
   }, [params.username, currentUser?.username]);
 
-  const { user: profileUser, posts: userPosts, isLoading } = useUserProfile(
-    params.username === "me" ? "" : params.username
+  // When accessing /profile/me, resolve to the real username right away so
+  // the queries fire immediately (the URL redirect still happens in parallel).
+  const resolvedUsername =
+    params.username === "me" ? (currentUser?.username ?? "") : params.username;
+
+  const { user: profileUser, posts: userPosts, isLoading } = useUserProfile(resolvedUsername);
+
+  const isOwnProfile =
+    !!currentUser &&
+    (params.username === "me" || currentUser.username === params.username);
+
+  // ── Liked posts (fetched when "likes" tab is active) ──
+  const likedQuery = trpc.like.byUser.useQuery(
+    { userId: profileUser?.id ?? "" },
+    { enabled: !isClientDemoMode && !!profileUser?.id && activeTab === "likes" }
   );
+  const likedPosts: MockPost[] = (likedQuery.data ?? []).map(transformPost);
+
+  // ── Saved posts (fetched when "saved" tab is active) ──
+  const savedQuery = trpc.save.byUser.useQuery(
+    { userId: profileUser?.id ?? "" },
+    { enabled: !isClientDemoMode && !!profileUser?.id && activeTab === "saved" }
+  );
+  const savedPosts: MockPost[] = (savedQuery.data ?? []).map(transformPost);
+
+  // Which posts to show in the grid
+  const gridPosts =
+    activeTab === "likes" ? likedPosts
+    : activeTab === "saved" ? savedPosts
+    : userPosts;
+  const gridLoading =
+    activeTab === "likes" ? likedQuery.isLoading
+    : activeTab === "saved" ? savedQuery.isLoading
+    : isLoading;
+  const gridEmpty: Record<ProfileTab, string> = {
+    posts: "No posts yet",
+    likes: "No liked posts yet",
+    saved: "No favorites yet",
+  };
 
   // While resolving "me" alias, show loading
   if (params.username === "me" && currentUserLoading) {
@@ -130,19 +172,38 @@ export default function ProfilePage({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsFollowing(!isFollowing)}
-              className={`
-                px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300
-                ${
-                  isFollowing
-                    ? "bg-lion-dark-3 text-lion-white border border-lion-gold/20 hover:border-red-400/30 hover:text-red-400"
-                    : "btn-gold"
-                }
-              `}
-            >
-              {isFollowing ? "Following" : "Follow"}
-            </button>
+            {isOwnProfile ? (
+              <>
+                <Link
+                  href="/invite"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold bg-lion-dark-3 text-lion-gold border border-lion-gold/20 hover:border-lion-gold/40 transition-all duration-200"
+                  title="Invite Friends"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                </Link>
+                <Link
+                  href="/profile/edit"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-lion-dark-3 text-lion-white border border-lion-gold/20 hover:border-lion-gold/40 transition-all duration-200"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit Profile
+                </Link>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsFollowing(!isFollowing)}
+                className={`
+                  px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300
+                  ${
+                    isFollowing
+                      ? "bg-lion-dark-3 text-lion-white border border-lion-gold/20 hover:border-red-400/30 hover:text-red-400"
+                      : "btn-gold"
+                  }
+                `}
+              >
+                {isFollowing ? "Following" : "Follow"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -180,7 +241,7 @@ export default function ProfilePage({
         {[
           { id: "posts" as ProfileTab, label: "Posts", icon: Grid3X3 },
           { id: "likes" as ProfileTab, label: "Likes", icon: Heart },
-          { id: "saved" as ProfileTab, label: "Saved", icon: Bookmark },
+          { id: "saved" as ProfileTab, label: "Favorites", icon: Star },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -206,17 +267,23 @@ export default function ProfilePage({
       </div>
 
       {/* Post Grid */}
-      {userPosts.length === 0 && !isLoading && (
+      {gridLoading && (
+        <div className="flex justify-center py-12">
+          <div className="w-6 h-6 rounded-full border-2 border-lion-gold/30 border-t-lion-gold animate-spin" />
+        </div>
+      )}
+      {!gridLoading && gridPosts.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-lion-gray-3 gap-3">
           <Grid3X3 className="w-10 h-10 opacity-30" />
-          <p className="text-sm">No posts yet</p>
+          <p className="text-sm">{gridEmpty[activeTab]}</p>
         </div>
       )}
       <div className="grid grid-cols-3 gap-0.5 px-0">
-        {userPosts.map((post) => (
-          <div
+        {gridPosts.map((post) => (
+          <Link
             key={post.id}
-            className="relative aspect-square bg-lion-dark-2 cursor-pointer group overflow-hidden"
+            href={`/post/${post.id}`}
+            className="relative aspect-square bg-lion-dark-2 cursor-pointer group overflow-hidden block"
           >
             {post.image ? (
               <Image
@@ -243,7 +310,7 @@ export default function ProfilePage({
                 </span>
               </div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 

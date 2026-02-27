@@ -22,12 +22,15 @@ function useLikeReal(): UseLikeResult {
   const mutation = trpc.like.toggle.useMutation({
     onSuccess: () => {
       utils.post.feed.invalidate();
+      utils.post.byUser.invalidate();
+      utils.post.byId.invalidate();
+      utils.like.byUser.invalidate();
     },
   });
 
   return {
     toggleLike: (postId: string) => mutation.mutate({ postId }),
-    isLoading: mutation.isLoading,
+    isLoading: mutation.isPending,
   };
 }
 

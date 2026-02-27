@@ -19,9 +19,11 @@ export function transformPost(apiPost: any): MockPost {
     likes: apiPost._count?.likes ?? 0,
     comments: apiPost._count?.comments ?? 0,
     shares: 0,
-    views: 0,
-    isLiked: false,
+    views: apiPost.viewCount ?? 0,
+    favorites: apiPost._count?.saves ?? 0,
+    isLiked: Array.isArray(apiPost.likes) && apiPost.likes.length > 0,
     isFavorited: false,
+    isBookmarked: Array.isArray(apiPost.saves) && apiPost.saves.length > 0,
     tags: Array.isArray(metadata.tags) ? metadata.tags : [],
     workoutData:
       apiPost.type === "workout"
