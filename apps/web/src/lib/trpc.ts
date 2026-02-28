@@ -1,8 +1,8 @@
-import { createTRPCReact } from "@trpc/react-query";
+import { createTRPCReact, type CreateTRPCReact } from "@trpc/react-query";
 import { httpBatchLink } from "@trpc/client";
 import type { AppRouter } from "@lion/api";
 
-export const trpc = createTRPCReact<AppRouter>();
+export const trpc: CreateTRPCReact<AppRouter, unknown, null> = createTRPCReact<AppRouter>();
 
 function getBaseUrl() {
   if (typeof window !== "undefined") return "";

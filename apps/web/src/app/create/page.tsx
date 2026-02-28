@@ -1267,7 +1267,7 @@ export default function CreatePage() {
   };
 
   // ── Validation hints ──
-  const validationHints = (() => {
+  const validationHints: string[] | null = (() => {
     if (!selectedType) return null;
     switch (selectedType) {
       case "workout": {
@@ -1481,7 +1481,7 @@ export default function CreatePage() {
       {selectedType && (
         <div className="border-t border-lion-gold/8 pt-6 space-y-4">
           {/* Validation hints */}
-          {validationHints && (
+          {validationHints !== null ? (
             <div className="rounded-xl bg-lion-dark-2 border border-lion-gold/10 px-4 py-3 flex items-start gap-3">
               <div className="w-5 h-5 rounded-full bg-lion-gold/10 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs text-lion-gold">!</span>
@@ -1493,14 +1493,14 @@ export default function CreatePage() {
                 </span>
               </p>
             </div>
-          )}
+          ) : null}
 
           {/* Post error */}
-          {postError && (
+          {postError ? (
             <div className="rounded-xl bg-red-400/10 border border-red-400/20 px-4 py-3 text-sm text-red-400">
-              {(postError as any)?.message ?? "Failed to create post. Are you signed in?"}
+              {(postError as Error)?.message ?? "Failed to create post. Are you signed in?"}
             </div>
-          )}
+          ) : null}
 
           {/* Buttons */}
           <div className="flex gap-3">

@@ -1,4 +1,4 @@
-import type { MockPost, MockUser } from "./types";
+import type { MockPost, MockUser, WorkoutData, MealData, QuoteData, StoryData } from "./types";
 
 /**
  * Transform a tRPC post response into the MockPost shape that components expect.
@@ -27,7 +27,7 @@ export function transformPost(apiPost: any): MockPost {
     tags: Array.isArray(metadata.tags) ? metadata.tags : [],
     workoutData:
       apiPost.type === "workout"
-        ? {
+        ? ({
             ...metadata,
             exercises: Array.isArray(metadata.exercises)
               ? metadata.exercises.map((ex: any) => ({
@@ -35,25 +35,25 @@ export function transformPost(apiPost: any): MockPost {
                   sets: Array.isArray(ex?.sets) ? ex.sets : [],
                 }))
               : [],
-          }
+          } as WorkoutData)
         : undefined,
     mealData:
       apiPost.type === "meal"
-        ? {
+        ? ({
             ...metadata,
             ingredients: Array.isArray(metadata.ingredients)
               ? metadata.ingredients
               : [],
             macros: metadata.macros ?? { calories: 0, protein: 0, carbs: 0, fat: 0 },
-          }
+          } as MealData)
         : undefined,
-    quoteData: apiPost.type === "quote" ? metadata : undefined,
+    quoteData: apiPost.type === "quote" ? (metadata as QuoteData) : undefined,
     storyData:
       apiPost.type === "story"
-        ? {
+        ? ({
             ...metadata,
             tags: Array.isArray(metadata.tags) ? metadata.tags : [],
-          }
+          } as StoryData)
         : undefined,
   };
 }

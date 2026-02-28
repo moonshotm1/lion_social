@@ -35,10 +35,10 @@ function useFeedReal(filter?: PostType | "all"): UseFeedResult {
     { getNextPageParam: (lastPage) => lastPage.nextCursor }
   );
 
-  const allPosts =
-    query.data?.pages.flatMap((p) =>
-      Array.isArray(p.posts) ? p.posts.map(transformPost) : []
-    ) ?? [];
+  const pages: any[] = query.data?.pages ?? [];
+  const allPosts: MockPost[] = pages.flatMap((p: any) =>
+    Array.isArray(p.posts) ? (p.posts as any[]).map(transformPost) : []
+  );
   const filtered =
     !filter || filter === "all"
       ? allPosts

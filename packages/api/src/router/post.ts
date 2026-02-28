@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Prisma } from "@lion/database";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 
 /** Returns a filtered like/save include so the client knows if the current user reacted */
@@ -176,7 +177,9 @@ export const postRouter = router({
           type: input.type,
           caption: input.caption,
           imageUrl: input.imageUrl,
-          metadata: input.metadata ?? undefined,
+          metadata: input.metadata !== undefined
+            ? (input.metadata as Prisma.InputJsonValue)
+            : undefined,
         },
         include: {
           user: true,
