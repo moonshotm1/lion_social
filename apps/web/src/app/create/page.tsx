@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, type ReactNode } from "react";
 import {
   Dumbbell,
   Salad,
@@ -1267,33 +1267,27 @@ export default function CreatePage() {
   };
 
   // ── Validation hints ──
-  const validationHints: string[] | null = ((): string[] | null => {
-    if (!selectedType) return null;
-    switch (selectedType) {
-      case "workout": {
-        const missing: string[] = [];
-        if (!workoutTitle.trim()) missing.push("workout title");
-        return missing.length > 0 ? missing : null;
-      }
-      case "meal": {
-        const missing: string[] = [];
-        if (!mealName.trim()) missing.push("meal name");
-        return missing.length > 0 ? missing : null;
-      }
-      case "quote": {
-        const missing: string[] = [];
-        if (!quoteText.trim()) missing.push("quote text");
-        return missing.length > 0 ? missing : null;
-      }
-      case "story": {
-        const missing: string[] = [];
-        if (!storyTitle.trim()) missing.push("story title");
-        if (!storyContent.trim()) missing.push("story content");
-        return missing.length > 0 ? missing : null;
-      }
-      default:
-        return null;
-    }
+  const validationHints: ReactNode = (() => {
+    const missing: string[] = [];
+    if (selectedType === "workout" && !workoutTitle.trim()) missing.push("workout title");
+    if (selectedType === "meal" && !mealName.trim()) missing.push("meal name");
+    if (selectedType === "quote" && !quoteText.trim()) missing.push("quote text");
+    if (selectedType === "story" && !storyTitle.trim()) missing.push("story title");
+    if (selectedType === "story" && !storyContent.trim()) missing.push("story content");
+    if (!selectedType || missing.length === 0) return null;
+    return (
+      <div className="rounded-xl bg-lion-dark-2 border border-lion-gold/10 px-4 py-3 flex items-start gap-3">
+        <div className="w-5 h-5 rounded-full bg-lion-gold/10 flex items-center justify-center shrink-0 mt-0.5">
+          <span className="text-xs text-lion-gold">!</span>
+        </div>
+        <p className="text-xs text-lion-gray-3 leading-relaxed">
+          To post, fill in the required fields:{" "}
+          <span className="text-lion-gray-4 font-medium">
+            {missing.join(", ")}
+          </span>
+        </p>
+      </div>
+    );
   })();
 
   // ── Auth gate ──
@@ -1481,19 +1475,7 @@ export default function CreatePage() {
       {selectedType && (
         <div className="border-t border-lion-gold/8 pt-6 space-y-4">
           {/* Validation hints */}
-          {validationHints !== null ? (
-            <div className="rounded-xl bg-lion-dark-2 border border-lion-gold/10 px-4 py-3 flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-lion-gold/10 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-xs text-lion-gold">!</span>
-              </div>
-              <p className="text-xs text-lion-gray-3 leading-relaxed">
-                To post, fill in the required fields:{" "}
-                <span className="text-lion-gray-4 font-medium">
-                  {validationHints.join(", ")}
-                </span>
-              </p>
-            </div>
-          ) : null}
+          {validationHints}
 
           {/* Post error */}
           {postError ? (
