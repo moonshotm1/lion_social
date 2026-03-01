@@ -7,7 +7,7 @@
     "DATABASE_URL",
     "DIRECT_URL"
   ],
-  "pipeline": {
+  "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "env": [
