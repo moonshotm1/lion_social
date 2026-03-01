@@ -1267,7 +1267,7 @@ export default function CreatePage() {
   };
 
   // ── Validation hints ──
-  const validationHints: string[] | null = (() => {
+  const validationHints: string[] | null = ((): string[] | null => {
     if (!selectedType) return null;
     switch (selectedType) {
       case "workout": {
