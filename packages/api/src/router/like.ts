@@ -82,6 +82,6 @@ export const likeRouter = router({
         },
       });
 
-      return likes.map((l) => l.post);
+      return likes.map((l: { post: any }) => l.post);
     }),
 });

@@ -54,6 +54,6 @@ export const saveRouter = router({
         },
       });
 
-      return saves.map((s) => s.post);
+      return saves.map((s: { post: any }) => s.post);
     }),
 });

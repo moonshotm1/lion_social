@@ -88,7 +88,7 @@ export const followRouter = router({
       }
 
       return {
-        followers: follows.map((f) => f.follower),
+        followers: follows.map((f: { follower: any }) => f.follower),
         nextCursor,
       };
     }),
@@ -136,7 +136,7 @@ export const followRouter = router({
       }
 
       return {
-        following: follows.map((f) => f.following),
+        following: follows.map((f: { following: any }) => f.following),
         nextCursor,
       };
     }),
