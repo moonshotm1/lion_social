@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "turbo run build --filter=@lion/web...",
+    "build": "cd apps/web && next build",
     "dev": "turbo dev",
     "lint": "turbo lint",
     "db:generate": "prisma generate --schema=packages/database/prisma/schema.prisma",
