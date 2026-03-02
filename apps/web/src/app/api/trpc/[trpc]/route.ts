@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter, createContext } from "@lion/api";
 import { prisma } from "@lion/database";

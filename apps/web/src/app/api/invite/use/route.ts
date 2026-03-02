@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase";
 import { prisma } from "@lion/database";
