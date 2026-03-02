@@ -78,6 +78,17 @@ export const commentRouter = router({
         },
       });
 
+      // Notify post owner (skip if user commented on their own post)
+      const post = await ctx.prisma.post.findUnique({
+        where: { id: input.postId },
+        select: { userId: true },
+      });
+      if (post && post.userId !== ctx.userId) {
+        await ctx.prisma.notification.create({
+          data: { userId: post.userId, type: "comment", referenceId: comment.id },
+        });
+      }
+
       return comment;
     }),
 

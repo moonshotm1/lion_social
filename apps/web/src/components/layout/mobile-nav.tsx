@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Compass, PlusSquare, Bell, User } from "lucide-react";
+import { useUnreadCount } from "@/hooks/use-unread-count";
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
@@ -14,6 +15,7 @@ const navItems = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { count: unreadCount } = useUnreadCount();
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-lion-dark-1/95 backdrop-blur-xl border-t border-lion-gold/10">
@@ -67,9 +69,9 @@ export function MobileNav() {
                   <div className="relative">
                     <Icon className="w-5 h-5" />
                     {/* Notification badge */}
-                    {item.label === "Notifications" && (
-                      <span className="absolute -top-1 -right-1.5 w-3.5 h-3.5 rounded-full bg-lion-gold text-lion-black text-[8px] font-bold flex items-center justify-center">
-                        3
+                    {item.label === "Notifications" && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                        {unreadCount > 99 ? "99+" : unreadCount}
                       </span>
                     )}
                   </div>

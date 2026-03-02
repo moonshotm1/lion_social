@@ -66,12 +66,20 @@ function useNotificationsReal(): UseNotificationsResult {
     markRead: (id: string) => {
       markReadMutation.mutate(
         { id },
-        { onSuccess: () => utils.notification.list.invalidate() }
+        {
+          onSuccess: () => {
+            utils.notification.list.invalidate();
+            utils.notification.unreadCount.invalidate();
+          },
+        }
       );
     },
     markAllRead: () => {
       markAllReadMutation.mutate(undefined, {
-        onSuccess: () => utils.notification.list.invalidate(),
+        onSuccess: () => {
+          utils.notification.list.invalidate();
+          utils.notification.unreadCount.invalidate();
+        },
       });
     },
   };

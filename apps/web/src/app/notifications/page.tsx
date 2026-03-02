@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -33,6 +34,15 @@ export default function NotificationsPage() {
   const { notifications, isLoading, markRead, markAllRead } = useNotifications();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Mark all as read when the page is visited (like Instagram)
+  const didMarkRef = useRef(false);
+  useEffect(() => {
+    if (!isLoading && !didMarkRef.current && unreadCount > 0) {
+      didMarkRef.current = true;
+      markAllRead();
+    }
+  }, [isLoading, unreadCount, markAllRead]);
 
   return (
     <div className="space-y-6 animate-fade-in">

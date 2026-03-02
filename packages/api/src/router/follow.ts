@@ -35,11 +35,16 @@ export const followRouter = router({
         return { following: false };
       }
 
-      await ctx.prisma.follow.create({
+      const follow = await ctx.prisma.follow.create({
         data: {
           followerId: ctx.userId,
           followingId: input.targetUserId,
         },
+      });
+
+      // Notify the user who was followed
+      await ctx.prisma.notification.create({
+        data: { userId: input.targetUserId, type: "follow", referenceId: follow.id },
       });
 
       return { following: true };

@@ -28,12 +28,23 @@ export const likeRouter = router({
         return { liked: false };
       }
 
-      await ctx.prisma.like.create({
+      const like = await ctx.prisma.like.create({
         data: {
           userId: ctx.userId,
           postId: input.postId,
         },
       });
+
+      // Notify post owner (skip if user liked their own post)
+      const post = await ctx.prisma.post.findUnique({
+        where: { id: input.postId },
+        select: { userId: true },
+      });
+      if (post && post.userId !== ctx.userId) {
+        await ctx.prisma.notification.create({
+          data: { userId: post.userId, type: "like", referenceId: like.id },
+        });
+      }
 
       return { liked: true };
     }),

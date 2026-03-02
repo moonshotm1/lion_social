@@ -15,6 +15,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useUnreadCount } from "@/hooks/use-unread-count";
 
 const staticNavItems = [
   { href: "/", label: "Home", icon: Home },
@@ -27,6 +28,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isSignedIn } = useCurrentUser();
+  const { count: unreadCount } = useUnreadCount();
   const profileHref = user ? `/profile/${user.username}` : "/profile/me";
   const navItems = [
     ...staticNavItems,
@@ -108,9 +110,9 @@ export function Sidebar() {
                   </span>
 
                   {/* Notification badge */}
-                  {item.label === "Notifications" && (
-                    <span className="ml-auto w-5 h-5 rounded-full bg-lion-gold text-lion-black text-xs font-bold flex items-center justify-center">
-                      3
+                  {item.label === "Notifications" && unreadCount > 0 && (
+                    <span className="ml-auto min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
+                      {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
                 </Link>
