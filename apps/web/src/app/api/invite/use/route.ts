@@ -1,8 +1,6 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
-import { prisma } from "@lion/database";
 
 export async function POST(req: Request) {
   const { code } = await req.json();
@@ -11,6 +9,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "code is required" }, { status: 400 });
   }
 
+  const { createSupabaseServerClient } = await import("@/lib/supabase");
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -20,6 +19,8 @@ export async function POST(req: Request) {
   if (error || !user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
+
+  const { prisma } = await import("@lion/database");
 
   const dbUser = await prisma.user.findUnique({
     where: { supabaseId: user.id },

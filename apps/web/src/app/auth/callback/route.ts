@@ -1,8 +1,6 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
-import { prisma } from "@lion/database";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -10,11 +8,13 @@ export async function GET(request: Request) {
   const next = searchParams.get("next") ?? "/";
 
   if (code) {
+    const { createSupabaseServerClient } = await import("@/lib/supabase");
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.user) {
       // Create user profile in database if it doesn't exist yet
+      const { prisma } = await import("@lion/database");
       const existingUser = await prisma.user.findUnique({
         where: { supabaseId: data.user.id },
       });

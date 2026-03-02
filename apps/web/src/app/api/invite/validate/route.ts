@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
-import { prisma } from "@lion/database";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -10,6 +9,8 @@ export async function GET(req: Request) {
   if (!code) {
     return NextResponse.json({ valid: false, error: "code is required" }, { status: 400 });
   }
+
+  const { prisma } = await import("@lion/database");
 
   const invite = await prisma.invite.findUnique({
     where: { code },

@@ -1,10 +1,5 @@
 export const dynamic = 'force-dynamic';
 
-import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { appRouter, createContext } from "@lion/api";
-import { prisma } from "@lion/database";
-import { createSupabaseServerClient } from "@/lib/supabase";
-
 const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 const handler = async (req: Request) => {
@@ -25,6 +20,11 @@ const handler = async (req: Request) => {
   }
 
   try {
+    const { fetchRequestHandler } = await import("@trpc/server/adapters/fetch");
+    const { appRouter, createContext } = await import("@lion/api");
+    const { prisma } = await import("@lion/database");
+    const { createSupabaseServerClient } = await import("@/lib/supabase");
+
     return await fetchRequestHandler({
       endpoint: "/api/trpc",
       req,
