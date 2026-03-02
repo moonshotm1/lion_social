@@ -1,14 +1,20 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans, Playfair_Display } from "next/font/google";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Providers } from "@/components/providers/providers";
 import "./globals.css";
 
-const inter = Inter({
+const dmSans = DM_Sans({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-dm-sans",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-playfair",
 });
 
 export const metadata: Metadata = {
@@ -43,12 +49,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`dark ${inter.variable}`}>
+    <html lang="en" className={`dark ${dmSans.variable} ${playfair.variable}`}>
       <body className="bg-lion-black text-lion-white font-sans antialiased">
         <Providers>
           <div className="flex min-h-screen">
             <Sidebar />
             <main className="flex-1 lg:ml-64 pb-20 lg:pb-0">
+              {/* Mobile header — visible only below lg breakpoint */}
+              <div className="lg:hidden sticky top-0 z-40 flex items-center px-4 py-3 bg-lion-dark-1/95 backdrop-blur-xl border-b border-lion-dark-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl leading-none select-none">🦁</span>
+                  <span
+                    className="text-xl font-bold font-display tracking-wide text-gold-gradient"
+                    style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
+                  >
+                    GAINS
+                  </span>
+                </div>
+              </div>
               <div className="max-w-2xl mx-auto px-4 py-6">{children}</div>
             </main>
           </div>

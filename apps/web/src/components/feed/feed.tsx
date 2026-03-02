@@ -26,10 +26,10 @@ const categories: {
   activeBg: string;
 }[] = [
   { id: "all", label: "All", icon: Sparkles, activeColor: "text-lion-gold", activeBg: "bg-lion-gold/15 border-lion-gold/40" },
-  { id: "workout", label: "Workouts", icon: Dumbbell, activeColor: "text-orange-400", activeBg: "bg-orange-400/15 border-orange-400/40" },
-  { id: "meal", label: "Meals", icon: Salad, activeColor: "text-green-400", activeBg: "bg-green-400/15 border-green-400/40" },
-  { id: "quote", label: "Quotes", icon: Quote, activeColor: "text-lion-gold", activeBg: "bg-lion-gold/15 border-lion-gold/40" },
-  { id: "story", label: "Stories", icon: BookOpen, activeColor: "text-purple-400", activeBg: "bg-purple-400/15 border-purple-400/40" },
+  { id: "workout", label: "Workouts", icon: Dumbbell, activeColor: "text-lion-gold", activeBg: "bg-lion-gold/15 border-lion-gold/40" },
+  { id: "meal", label: "Meals", icon: Salad, activeColor: "text-gains-green", activeBg: "bg-gains-green/15 border-gains-green/40" },
+  { id: "quote", label: "Quotes", icon: Quote, activeColor: "text-gains-purple", activeBg: "bg-gains-purple/15 border-gains-purple/40" },
+  { id: "story", label: "Stories", icon: BookOpen, activeColor: "text-gains-orange", activeBg: "bg-gains-orange/15 border-gains-orange/40" },
 ];
 
 export function Feed() {

@@ -71,11 +71,11 @@ function WorkoutContent({ data }: { data: WorkoutData }) {
       {/* Title and badges */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Dumbbell className="w-4 h-4 text-orange-400" />
+          <Dumbbell className="w-4 h-4 text-lion-gold" />
           <h3 className="text-base font-bold text-lion-white">{data.title}</h3>
         </div>
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-orange-400/10 text-orange-400">
+          <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-lion-gold/10 text-lion-gold">
             <Clock className="w-3 h-3" />
             {data.duration} min
           </span>
@@ -121,10 +121,10 @@ function MealContent({ data }: { data: MealData }) {
       {/* Title and meal type badge */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <UtensilsCrossed className="w-4 h-4 text-green-400" />
+          <UtensilsCrossed className="w-4 h-4 text-gains-green" />
           <h3 className="text-base font-bold text-lion-white">{data.name}</h3>
         </div>
-        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-green-400/10 text-green-400">
+        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gains-green/10 text-gains-green">
           {mealTypeLabel}
         </span>
       </div>
@@ -161,7 +161,7 @@ function MealContent({ data }: { data: MealData }) {
         {data.ingredients.map((ingredient) => (
           <span
             key={ingredient.name}
-            className="text-xs px-2.5 py-1 rounded-full bg-green-400/5 text-lion-gray-4 border border-green-400/10 hover:border-green-400/30 transition-colors duration-200"
+            className="text-xs px-2.5 py-1 rounded-full bg-gains-green/5 text-lion-gray-4 border border-gains-green/10 hover:border-gains-green/30 transition-colors duration-200"
           >
             {ingredient.name}{" "}
             <span className="text-lion-gray-2">({ingredient.amount})</span>
@@ -177,14 +177,14 @@ function MealContent({ data }: { data: MealData }) {
 function QuoteContent({ data }: { data: QuoteData }) {
   return (
     <div className="px-4 pt-3 pb-2">
-      <div className="relative rounded-xl overflow-hidden border border-lion-gold/20 shadow-gold-md bg-gradient-to-br from-lion-dark-2 via-lion-dark-3 to-lion-dark-2">
-        {/* Subtle gold glow overlay */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(212,168,67,0.08),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(212,168,67,0.06),transparent_60%)]" />
+      <div className="relative rounded-xl overflow-hidden border border-gains-purple/20 bg-gradient-to-br from-lion-dark-2 via-lion-dark-3 to-lion-dark-2" style={{ boxShadow: "0 4px 16px rgba(155, 143, 255, 0.1)" }}>
+        {/* Subtle purple glow overlay */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(155,143,255,0.08),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(155,143,255,0.06),transparent_60%)]" />
 
         <div className="relative px-6 py-8 text-center space-y-4">
           {/* Opening quotation mark */}
-          <Quote className="w-8 h-8 text-lion-gold/40 mx-auto rotate-180" />
+          <Quote className="w-8 h-8 text-gains-purple/40 mx-auto rotate-180" />
 
           {/* Quote text */}
           <p className="text-lg italic text-lion-white leading-relaxed font-light tracking-wide">
@@ -193,9 +193,9 @@ function QuoteContent({ data }: { data: QuoteData }) {
 
           {/* Author */}
           <div className="flex items-center justify-center gap-2">
-            <div className="h-px w-8 bg-lion-gold/30" />
-            <p className="text-sm font-semibold text-lion-gold">{data.author}</p>
-            <div className="h-px w-8 bg-lion-gold/30" />
+            <div className="h-px w-8 bg-gains-purple/30" />
+            <p className="text-sm font-semibold text-gains-purple">{data.author}</p>
+            <div className="h-px w-8 bg-gains-purple/30" />
           </div>
         </div>
       </div>
@@ -216,7 +216,7 @@ function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean 
     <div className="px-4 pt-3 pb-2 space-y-3">
       {/* Title */}
       <div className="flex items-center gap-2">
-        <BookOpen className="w-4 h-4 text-purple-400" />
+        <BookOpen className="w-4 h-4 text-gains-orange" />
         <h3 className="text-base font-bold text-lion-white">{data.title}</h3>
       </div>
 
@@ -233,7 +233,7 @@ function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean 
         {data.tags.map((tag) => (
           <span
             key={tag}
-            className="text-xs px-2.5 py-1 rounded-full bg-purple-400/10 text-purple-400 border border-purple-400/15 hover:border-purple-400/40 transition-colors duration-200 cursor-pointer"
+            className="text-xs px-2.5 py-1 rounded-full bg-gains-orange/10 text-gains-orange border border-gains-orange/15 hover:border-gains-orange/40 transition-colors duration-200 cursor-pointer"
           >
             #{tag}
           </span>

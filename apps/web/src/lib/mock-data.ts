@@ -486,26 +486,26 @@ export const postTypeConfig: Record<
 > = {
   workout: {
     label: "Workout",
-    color: "text-orange-400",
-    bgColor: "bg-orange-400/10",
+    color: "text-lion-gold",
+    bgColor: "bg-lion-gold/10",
     emoji: "💪",
   },
   meal: {
     label: "Meal",
-    color: "text-green-400",
-    bgColor: "bg-green-400/10",
+    color: "text-gains-green",
+    bgColor: "bg-gains-green/10",
     emoji: "🥗",
   },
   quote: {
     label: "Quote",
-    color: "text-lion-gold",
-    bgColor: "bg-lion-gold/10",
+    color: "text-gains-purple",
+    bgColor: "bg-gains-purple/10",
     emoji: "💬",
   },
   story: {
     label: "Story",
-    color: "text-purple-400",
-    bgColor: "bg-purple-400/10",
+    color: "text-gains-orange",
+    bgColor: "bg-gains-orange/10",
     emoji: "📖",
   },
 };

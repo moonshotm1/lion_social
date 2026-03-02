@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(netstat:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npx prisma db pull:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:Free1045!20@db.xpvywayrfahzelxirczn.supabase.co:5432/postgres\" npx prisma db push:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:Free1045!20@db.xpvywayrfahzelxirczn.supabase.co:5432/postgres\" node:*)",
+      "Bash(node -e:*)",
+      "Bash(npx turbo dev)",
+      "Bash(powershell -Command \"Start-Process ''http://localhost:3000''\")",
+      "Bash(powershell -Command:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd /c \"taskkill /PID 15996 /F\")",
+      "Bash(cmd /c \"netstat -ano | findstr \"\":3000\"\"\")",
+      "Bash(npx next dev:*)",
+      "Bash(curl:*)",
+      "Bash(cmd /c:*)",
+      "Bash(npx next build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(xargs:*)",
+      "Bash(del /f /s /q \".next\")",
+      "Bash(del /f /q \"tsconfig.tsbuildinfo\")",
+      "Bash(npx turbo run build:*)",
+      "Bash(npm run build:*)"
+    ]
+  }
+}

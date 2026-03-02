@@ -9,7 +9,6 @@ import {
   PlusSquare,
   Bell,
   User,
-  Crown,
   LogOut,
   LogIn,
   Settings,
@@ -48,11 +47,12 @@ export function Sidebar() {
       {/* Logo */}
       <div className="p-6 pb-2">
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-xl bg-gold-gradient flex items-center justify-center shadow-gold-md group-hover:shadow-gold-lg transition-shadow duration-300">
-            <Crown className="w-5 h-5 text-lion-black" />
-          </div>
+          <span className="text-3xl leading-none select-none">🦁</span>
           <div>
-            <h1 className="text-lg font-bold tracking-wider text-gold-gradient">
+            <h1
+              className="text-xl font-bold text-gold-gradient tracking-wide"
+              style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
+            >
               GAINS
             </h1>
             <p className="text-[10px] tracking-[0.2em] text-lion-gray-3 uppercase">
