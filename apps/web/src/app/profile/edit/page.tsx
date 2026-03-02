@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, Check, AlertCircle } from "lucide-react";
+import { ArrowLeft, Camera, Check, AlertCircle, Loader2 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { trpc } from "@/lib/trpc";
 import { isClientDemoMode } from "@/lib/env-client";
@@ -28,6 +28,45 @@ export default function EditProfilePage() {
     }
   }, [user?.id]);
 
+  // ── Username availability check (debounced) ──
+  const [usernameToCheck, setUsernameToCheck] = useState("");
+
+  const usernameFormatError = (() => {
+    if (username.length < 3) return "Must be at least 3 characters";
+    if (username.length > 30) return "Must be 30 characters or fewer";
+    if (!/^[a-zA-Z0-9_]+$/.test(username))
+      return "Only letters, numbers, and underscores";
+    return null;
+  })();
+
+  // Debounce: only check availability when format is valid and username changed
+  useEffect(() => {
+    if (usernameFormatError || !username || username === user?.username) {
+      setUsernameToCheck("");
+      return;
+    }
+    const timer = setTimeout(() => setUsernameToCheck(username), 500);
+    return () => clearTimeout(timer);
+  }, [username, user?.username, usernameFormatError]);
+
+  const availabilityQuery = trpc.user.byUsername.useQuery(
+    { username: usernameToCheck },
+    {
+      enabled: !isClientDemoMode && !!usernameToCheck,
+      staleTime: 30_000,
+      retry: false,
+    }
+  );
+
+  const isUsernameTaken =
+    !!availabilityQuery.data &&
+    availabilityQuery.data.id !== user?.id;
+
+  const isCheckingUsername =
+    availabilityQuery.isFetching && usernameToCheck !== "";
+
+  const usernameError = usernameFormatError ?? (isUsernameTaken ? "Username is already taken" : null);
+
   // ── Upload & mutation state ──
   const [isUploading, setIsUploading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -42,7 +81,6 @@ export default function EditProfilePage() {
       trpc.user.update.useMutation({
         onSuccess: (updatedUser) => {
           setSaveSuccess(true);
-          // Navigate to the (possibly renamed) profile
           setTimeout(() => {
             router.push(`/profile/${updatedUser.username}`);
           }, 800);
@@ -57,22 +95,15 @@ export default function EditProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setAvatarFile(file);
-    // Show local preview immediately
     const reader = new FileReader();
     reader.onload = () => setAvatarPreview(reader.result as string);
     reader.readAsDataURL(file);
   };
 
-  // ── Validation ──
-  const usernameError = (() => {
-    if (username.length < 3) return "Must be at least 3 characters";
-    if (username.length > 30) return "Must be 30 characters or fewer";
-    if (!/^[a-zA-Z0-9_]+$/.test(username))
-      return "Only letters, numbers, and underscores";
-    return null;
-  })();
-
-  const isValid = !usernameError && username.trim().length > 0;
+  const isValid =
+    !usernameError &&
+    !isCheckingUsername &&
+    username.trim().length > 0;
 
   // ── Submit ──
   const handleSave = async () => {
@@ -81,7 +112,6 @@ export default function EditProfilePage() {
 
     let newAvatarUrl: string | undefined;
 
-    // Upload avatar if changed
     if (avatarFile) {
       setIsUploading(true);
       try {
@@ -105,7 +135,6 @@ export default function EditProfilePage() {
     }
 
     if (isClientDemoMode) {
-      // In demo mode, just navigate back
       router.push(`/profile/${username}`);
       return;
     }
@@ -173,7 +202,6 @@ export default function EditProfilePage() {
             )}
           </div>
 
-          {/* Camera overlay button */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -185,7 +213,7 @@ export default function EditProfilePage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/gif"
             onChange={handleAvatarChange}
             className="hidden"
           />
@@ -218,15 +246,44 @@ export default function EditProfilePage() {
                 onChange={(e) => setUsername(e.target.value.toLowerCase())}
                 placeholder="username"
                 maxLength={30}
-                className="input-dark text-sm pl-7"
+                className="input-dark text-sm pl-7 pr-9"
               />
+              {/* Availability indicator */}
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                {isCheckingUsername && (
+                  <Loader2 className="w-4 h-4 text-lion-gray-3 animate-spin" />
+                )}
+                {!isCheckingUsername && usernameToCheck && !isUsernameTaken && !usernameFormatError && (
+                  <Check className="w-4 h-4 text-gains-green" />
+                )}
+                {!isCheckingUsername && isUsernameTaken && (
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                )}
+              </div>
             </div>
-            {usernameError && username.length > 0 && (
+
+            {/* Format error */}
+            {usernameFormatError && username.length > 0 && (
               <p className="text-xs text-red-400 mt-2 flex items-center gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5" />
-                {usernameError}
+                {usernameFormatError}
               </p>
             )}
+            {/* Availability error */}
+            {!usernameFormatError && isUsernameTaken && (
+              <p className="text-xs text-red-400 mt-2 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                Username is already taken
+              </p>
+            )}
+            {/* Available confirmation */}
+            {!usernameFormatError && !isUsernameTaken && !isCheckingUsername && usernameToCheck && (
+              <p className="text-xs text-gains-green mt-2 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5" />
+                Username is available
+              </p>
+            )}
+
             <p className="text-xs text-lion-gray-2 mt-2">
               {username.length}/30 · Only letters, numbers, and underscores
             </p>
