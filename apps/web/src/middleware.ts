@@ -6,12 +6,11 @@ import type { CookieOptions } from "@supabase/ssr";
 const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 export async function middleware(request: NextRequest) {
+  // In demo mode there is no Supabase session — pass everything through.
   if (isDemoMode) {
     return NextResponse.next();
   }
 
-  // If the middleware crashes for any reason, let the request through
-  // rather than returning an HTML error page that breaks API routes.
   try {
     let supabaseResponse = NextResponse.next({ request });
 
@@ -23,43 +22,65 @@ export async function middleware(request: NextRequest) {
           getAll() {
             return request.cookies.getAll();
           },
-          setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          setAll(
+            cookiesToSet: {
+              name: string;
+              value: string;
+              options: CookieOptions;
+            }[]
+          ) {
             cookiesToSet.forEach(({ name, value }) =>
               request.cookies.set(name, value)
             );
             supabaseResponse = NextResponse.next({ request });
             cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options as Parameters<typeof supabaseResponse.cookies.set>[2])
+              supabaseResponse.cookies.set(
+                name,
+                value,
+                options as Parameters<typeof supabaseResponse.cookies.set>[2]
+              )
             );
           },
         },
       }
     );
 
-    // Refresh the session (updates expired tokens via cookies)
+    // Refresh session tokens via cookies
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // Public routes that don't require authentication
-    const isPublicRoute =
-      request.nextUrl.pathname === "/" ||
-      request.nextUrl.pathname.startsWith("/sign-in") ||
-      request.nextUrl.pathname.startsWith("/sign-up") ||
-      request.nextUrl.pathname.startsWith("/explore") ||
-      request.nextUrl.pathname.startsWith("/profile/") ||
-      request.nextUrl.pathname.startsWith("/api/trpc") ||
-      request.nextUrl.pathname.startsWith("/api/auth/") ||
-      request.nextUrl.pathname.startsWith("/auth/callback");
+    const { pathname } = request.nextUrl;
 
-    if (!user && !isPublicRoute) {
+    // Routes that are accessible without a session
+    const isAuthPage =
+      pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
+
+    const isPublicApiRoute =
+      pathname.startsWith("/api/trpc") ||
+      pathname.startsWith("/api/auth/") ||
+      pathname.startsWith("/api/invite/") ||
+      pathname.startsWith("/api/upload") ||
+      pathname.startsWith("/auth/callback");
+
+    // Unauthenticated user hitting a protected page → sign-in
+    if (!user && !isAuthPage && !isPublicApiRoute) {
       const signInUrl = new URL("/sign-in", request.url);
-      signInUrl.searchParams.set("redirect_to", request.nextUrl.pathname);
+      // Preserve the intended destination so we can redirect after login
+      if (pathname !== "/sign-in") {
+        signInUrl.searchParams.set("redirect_to", pathname);
+      }
       return NextResponse.redirect(signInUrl);
+    }
+
+    // Authenticated user hitting sign-in or sign-up → home feed
+    if (user && isAuthPage) {
+      return NextResponse.redirect(new URL("/", request.url));
     }
 
     return supabaseResponse;
   } catch (err) {
+    // Never return an HTML error page for API routes
     console.error("[Middleware] Error — passing request through:", err);
     return NextResponse.next();
   }

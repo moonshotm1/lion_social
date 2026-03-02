@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useUnreadCount } from "@/hooks/use-unread-count";
+import { LionLogo } from "@/components/ui/lion-logo";
 
 const staticNavItems = [
   { href: "/", label: "Home", icon: Home },
@@ -47,7 +48,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="p-6 pb-2">
         <Link href="/" className="flex items-center gap-3 group">
-          <span className="text-3xl leading-none select-none">🦁</span>
+          <LionLogo size={44} withBackground className="rounded-xl flex-shrink-0" />
           <div>
             <h1
               className="text-xl font-bold text-gold-gradient tracking-wide"

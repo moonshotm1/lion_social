@@ -2,30 +2,76 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Crown, Eye, EyeOff, Loader2, Ticket } from "lucide-react";
+import { Eye, EyeOff, Loader2, Ticket } from "lucide-react";
 import Link from "next/link";
 import { isClientDemoMode } from "@/lib/env-client";
+import { LionLogo } from "@/components/ui/lion-logo";
 
-function DemoSignUp() {
+// ─── Shared header ───────────────────────────────────────────────────────────
+
+function AuthHeader() {
   return (
-    <div className="relative z-10 w-full max-w-sm">
-      <div className="rounded-xl bg-lion-dark-1 border border-lion-gold/10 shadow-dark-lg p-8 text-center space-y-4">
-        <h2 className="text-lg font-bold text-lion-white">Demo Mode</h2>
-        <p className="text-sm text-lion-gray-3 leading-relaxed">
-          Sign up is not available in demo mode. Add your Supabase keys to{" "}
-          <code className="text-lion-gold">.env.local</code> to enable
-          authentication.
-        </p>
-        <Link
-          href="/"
-          className="inline-block btn-gold px-6 py-2.5 text-sm font-semibold rounded-xl"
+    <div className="flex flex-col items-center gap-4 mb-10">
+      <div className="relative">
+        <div className="absolute inset-0 rounded-2xl bg-lion-gold/20 blur-xl scale-110" />
+        <LionLogo size={80} withBackground className="relative rounded-2xl shadow-gold-lg" />
+      </div>
+
+      <div className="text-center space-y-1">
+        <h1
+          className="text-4xl font-bold text-gold-gradient tracking-wide"
+          style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
         >
-          Back to Feed
-        </Link>
+          GAINS
+        </h1>
+        <p className="text-sm text-lion-gray-3 tracking-wide">
+          The exclusive wellness community
+        </p>
       </div>
     </div>
   );
 }
+
+// ─── Demo mode notice ────────────────────────────────────────────────────────
+
+function DemoSignUp() {
+  return (
+    <div className="w-full max-w-sm">
+      <AuthHeader />
+      <div className="rounded-2xl bg-lion-dark-2 border border-lion-dark-4 p-8 space-y-5">
+        <div className="text-center space-y-2">
+          <span className="inline-block px-3 py-1 rounded-full bg-lion-gold/10 border border-lion-gold/20 text-xs font-semibold text-lion-gold uppercase tracking-widest">
+            Demo Mode
+          </span>
+          <h2 className="text-lg font-bold text-lion-white mt-3">Create your account</h2>
+          <p className="text-sm text-lion-gray-3 leading-relaxed">
+            Add your Supabase credentials to{" "}
+            <code className="text-lion-gold bg-lion-dark-3 px-1.5 py-0.5 rounded text-xs">.env.local</code>{" "}
+            to enable sign-up.
+          </p>
+        </div>
+
+        <div className="space-y-3 opacity-40 pointer-events-none select-none">
+          <div className="h-11 rounded-xl bg-lion-dark-3 border border-lion-dark-4" />
+          <div className="h-11 rounded-xl bg-lion-dark-3 border border-lion-dark-4" />
+          <div className="h-11 rounded-xl bg-lion-dark-3 border border-lion-dark-4" />
+          <div className="h-11 rounded-xl bg-gold-gradient" />
+        </div>
+
+        <div className="text-center pt-2">
+          <Link
+            href="/"
+            className="text-sm text-lion-gold hover:text-lion-gold-light font-medium transition-colors"
+          >
+            ← Continue to demo feed
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Real Supabase sign-up ────────────────────────────────────────────────────
 
 function SupabaseSignUpInner() {
   const router = useRouter();
@@ -40,7 +86,6 @@ function SupabaseSignUpInner() {
   const [isLoading, setIsLoading] = useState(false);
   const [isConfirmation, setIsConfirmation] = useState(false);
 
-  // Pre-fill invite code from URL param
   useEffect(() => {
     const code = searchParams.get("invite");
     if (code) setInviteCode(code.toUpperCase());
@@ -65,15 +110,12 @@ function SupabaseSignUpInner() {
       return;
     }
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      setError(
-        "Username can only contain letters, numbers, and underscores."
-      );
+      setError("Username can only contain letters, numbers, and underscores.");
       setIsLoading(false);
       return;
     }
 
     try {
-      // 1. Validate invite code before creating account
       const validateRes = await fetch(
         `/api/invite/validate?code=${encodeURIComponent(code)}`
       );
@@ -87,16 +129,14 @@ function SupabaseSignUpInner() {
       const { createSupabaseBrowserClient } = await import("@/lib/supabase");
       const supabase = createSupabaseBrowserClient();
 
-      // 2. Create Supabase auth account
-      const { data: authData, error: authError } =
-        await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?invite=${encodeURIComponent(code)}`,
-            data: { username },
-          },
-        });
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?invite=${encodeURIComponent(code)}`,
+          data: { username },
+        },
+      });
 
       if (authError) {
         setError(authError.message);
@@ -110,14 +150,12 @@ function SupabaseSignUpInner() {
         return;
       }
 
-      // Email confirmation required — show confirmation screen
       if (authData.user && !authData.session) {
         setIsConfirmation(true);
         setIsLoading(false);
         return;
       }
 
-      // No email confirmation — create user profile and consume invite
       if (authData.user) {
         await fetch("/api/auth/ensure-profile", { method: "POST" });
         await fetch("/api/invite/use", {
@@ -137,22 +175,28 @@ function SupabaseSignUpInner() {
 
   if (isConfirmation) {
     return (
-      <div className="relative z-10 w-full max-w-sm">
-        <div className="rounded-xl bg-lion-dark-1 border border-lion-gold/10 shadow-dark-lg p-8 text-center space-y-4">
-          <div className="w-12 h-12 rounded-full bg-lion-gold/10 flex items-center justify-center mx-auto">
-            <Crown className="w-6 h-6 text-lion-gold" />
+      <div className="w-full max-w-sm">
+        <AuthHeader />
+        <div className="rounded-2xl bg-lion-dark-2 border border-lion-dark-4 p-8 text-center space-y-5">
+          <div className="w-14 h-14 rounded-full bg-lion-gold/10 border border-lion-gold/20 flex items-center justify-center mx-auto">
+            <span className="text-2xl">✉️</span>
           </div>
-          <h2 className="text-lg font-bold text-lion-white">
-            Check your email
-          </h2>
-          <p className="text-sm text-lion-gray-3 leading-relaxed">
-            We sent a confirmation link to{" "}
-            <span className="text-lion-gold">{email}</span>. Click the link
-            to activate your account.
-          </p>
+          <div className="space-y-2">
+            <h2
+              className="text-xl font-bold text-lion-white"
+              style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
+            >
+              Check your email
+            </h2>
+            <p className="text-sm text-lion-gray-3 leading-relaxed">
+              We sent a confirmation link to{" "}
+              <span className="text-lion-gold font-medium">{email}</span>.
+              Click the link to activate your account.
+            </p>
+          </div>
           <Link
             href="/sign-in"
-            className="inline-block btn-gold px-6 py-2.5 text-sm font-semibold rounded-xl"
+            className="inline-block w-full py-3 rounded-xl bg-gold-gradient text-lion-black font-bold text-sm text-center tracking-wide hover:shadow-gold-md transition-all duration-300"
           >
             Go to Sign In
           </Link>
@@ -162,25 +206,30 @@ function SupabaseSignUpInner() {
   }
 
   return (
-    <div className="relative z-10 w-full max-w-sm">
-      <div className="rounded-xl bg-lion-dark-1 border border-lion-gold/10 shadow-dark-lg p-8">
-        <div className="text-center mb-6">
-          <h2 className="text-lg font-bold text-lion-white">
+    <div className="w-full max-w-sm">
+      <AuthHeader />
+
+      <div className="rounded-2xl bg-lion-dark-2 border border-lion-dark-4 p-8">
+        <div className="text-center mb-8">
+          <h2
+            className="text-xl font-bold text-lion-white"
+            style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
+          >
             Create your account
           </h2>
-          <p className="text-sm text-lion-gray-3 mt-1">
+          <p className="text-sm text-lion-gray-3 mt-1.5">
             Gains is invite-only. Enter your code to join.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Invite code field */}
-          <div>
+          {/* Invite code */}
+          <div className="space-y-1.5">
             <label
               htmlFor="inviteCode"
-              className="block text-sm font-medium text-lion-gray-4 mb-1.5"
+              className="block text-xs font-semibold text-lion-gray-4 uppercase tracking-wider"
             >
-              Invite code
+              Invite Code
             </label>
             <div className="relative">
               <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-lion-gold" />
@@ -188,21 +237,19 @@ function SupabaseSignUpInner() {
                 id="inviteCode"
                 type="text"
                 value={inviteCode}
-                onChange={(e) =>
-                  setInviteCode(e.target.value.toUpperCase())
-                }
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                 required
                 placeholder="XXXXXXXX"
                 maxLength={16}
-                className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-lion-dark-2 border border-lion-gold/30 text-lion-gold placeholder:text-lion-gray-3 focus:outline-none focus:border-lion-gold/60 focus:ring-1 focus:ring-lion-gold/30 transition-colors font-mono tracking-widest uppercase"
+                className="w-full pl-9 pr-4 py-3 rounded-xl bg-lion-dark-3 border border-lion-gold/25 text-lion-gold placeholder:text-lion-gray-2 focus:outline-none focus:border-lion-gold/50 focus:ring-1 focus:ring-lion-gold/25 transition-all text-sm font-mono tracking-widest uppercase"
               />
             </div>
           </div>
 
-          <div>
+          <div className="space-y-1.5">
             <label
               htmlFor="username"
-              className="block text-sm font-medium text-lion-gray-4 mb-1.5"
+              className="block text-xs font-semibold text-lion-gray-4 uppercase tracking-wider"
             >
               Username
             </label>
@@ -216,16 +263,16 @@ function SupabaseSignUpInner() {
               placeholder="your_username"
               minLength={3}
               maxLength={30}
-              className="w-full px-4 py-2.5 rounded-xl bg-lion-dark-2 border border-lion-gold/10 text-lion-white placeholder:text-lion-gray-3 focus:outline-none focus:border-lion-gold/30 focus:ring-1 focus:ring-lion-gold/20 transition-colors"
+              className="w-full px-4 py-3 rounded-xl bg-lion-dark-3 border border-lion-dark-4 text-lion-white placeholder:text-lion-gray-2 focus:outline-none focus:border-lion-gold/40 focus:ring-1 focus:ring-lion-gold/20 transition-all text-sm"
             />
           </div>
 
-          <div>
+          <div className="space-y-1.5">
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-lion-gray-4 mb-1.5"
+              className="block text-xs font-semibold text-lion-gray-4 uppercase tracking-wider"
             >
-              Email address
+              Email Address
             </label>
             <input
               id="email"
@@ -235,14 +282,14 @@ function SupabaseSignUpInner() {
               required
               autoComplete="email"
               placeholder="you@example.com"
-              className="w-full px-4 py-2.5 rounded-xl bg-lion-dark-2 border border-lion-gold/10 text-lion-white placeholder:text-lion-gray-3 focus:outline-none focus:border-lion-gold/30 focus:ring-1 focus:ring-lion-gold/20 transition-colors"
+              className="w-full px-4 py-3 rounded-xl bg-lion-dark-3 border border-lion-dark-4 text-lion-white placeholder:text-lion-gray-2 focus:outline-none focus:border-lion-gold/40 focus:ring-1 focus:ring-lion-gold/20 transition-all text-sm"
             />
           </div>
 
-          <div>
+          <div className="space-y-1.5">
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-lion-gray-4 mb-1.5"
+              className="block text-xs font-semibold text-lion-gray-4 uppercase tracking-wider"
             >
               Password
             </label>
@@ -256,12 +303,12 @@ function SupabaseSignUpInner() {
                 autoComplete="new-password"
                 placeholder="At least 6 characters"
                 minLength={6}
-                className="w-full px-4 py-2.5 rounded-xl bg-lion-dark-2 border border-lion-gold/10 text-lion-white placeholder:text-lion-gray-3 focus:outline-none focus:border-lion-gold/30 focus:ring-1 focus:ring-lion-gold/20 transition-colors pr-10"
+                className="w-full px-4 py-3 rounded-xl bg-lion-dark-3 border border-lion-dark-4 text-lion-white placeholder:text-lion-gray-2 focus:outline-none focus:border-lion-gold/40 focus:ring-1 focus:ring-lion-gold/20 transition-all text-sm pr-11"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-lion-gray-3 hover:text-lion-white transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-lion-gray-3 hover:text-lion-white transition-colors p-1"
               >
                 {showPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -273,7 +320,7 @@ function SupabaseSignUpInner() {
           </div>
 
           {error && (
-            <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-xl px-4 py-2.5">
+            <div className="text-sm text-red-400 bg-red-400/8 border border-red-400/15 rounded-xl px-4 py-3">
               {error}
             </div>
           )}
@@ -281,30 +328,30 @@ function SupabaseSignUpInner() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 rounded-xl bg-gold-gradient hover:shadow-gold-md text-lion-black font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-gold-gradient text-lion-black font-bold text-sm tracking-wide hover:shadow-gold-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Creating account...
+                Creating account…
               </>
             ) : (
-              "Create account"
+              "Create Account"
             )}
           </button>
         </form>
 
         <div className="flex items-center gap-3 my-6">
-          <div className="flex-1 h-px bg-lion-gold/10" />
-          <span className="text-xs text-lion-gray-3">or</span>
-          <div className="flex-1 h-px bg-lion-gold/10" />
+          <div className="flex-1 h-px bg-lion-dark-4" />
+          <span className="text-xs text-lion-gray-2">or</span>
+          <div className="flex-1 h-px bg-lion-dark-4" />
         </div>
 
         <p className="text-center text-sm text-lion-gray-3">
           Already have an account?{" "}
           <Link
             href="/sign-in"
-            className="text-lion-gold hover:text-lion-gold-light font-medium transition-colors"
+            className="text-lion-gold hover:text-lion-gold-light font-semibold transition-colors"
           >
             Sign in
           </Link>
@@ -327,26 +374,15 @@ const SignUpContent = isClientDemoMode ? DemoSignUp : SupabaseSignUp;
 export default function SignUpPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-lion-black px-4 -my-6">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-lion-gold/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/3 left-1/4 w-96 h-96 bg-lion-gold/3 rounded-full blur-3xl" />
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute top-1/3 right-1/2 translate-x-1/2 w-[500px] h-[500px] bg-lion-gold/5 rounded-full blur-[100px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-gains-purple/3 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/4 w-48 h-48 bg-gains-green/3 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center gap-4 mb-8">
-        <div className="w-16 h-16 rounded-2xl bg-gold-gradient flex items-center justify-center shadow-gold-lg">
-          <Crown className="w-8 h-8 text-lion-black" />
-        </div>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-wider text-gold-gradient">
-            GAINS
-          </h1>
-          <p className="text-sm text-lion-gray-3 mt-1">
-            Join the community. Elevate your life.
-          </p>
-        </div>
+      <div className="relative z-10 w-full flex justify-center">
+        <SignUpContent />
       </div>
-
-      <SignUpContent />
     </div>
   );
 }

@@ -2,30 +2,77 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Crown, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { isClientDemoMode } from "@/lib/env-client";
+import { LionLogo } from "@/components/ui/lion-logo";
 
-function DemoSignIn() {
+// ─── Shared header shown on both demo and real sign-in ──────────────────────
+
+function AuthHeader() {
   return (
-    <div className="relative z-10 w-full max-w-sm">
-      <div className="rounded-xl bg-lion-dark-1 border border-lion-gold/10 shadow-dark-lg p-8 text-center space-y-4">
-        <h2 className="text-lg font-bold text-lion-white">Demo Mode</h2>
-        <p className="text-sm text-lion-gray-3 leading-relaxed">
-          Sign in is not available in demo mode. Add your Supabase keys to{" "}
-          <code className="text-lion-gold">.env.local</code> to enable
-          authentication.
-        </p>
-        <Link
-          href="/"
-          className="inline-block btn-gold px-6 py-2.5 text-sm font-semibold rounded-xl"
+    <div className="flex flex-col items-center gap-4 mb-10">
+      {/* Logo with glow */}
+      <div className="relative">
+        <div className="absolute inset-0 rounded-2xl bg-lion-gold/20 blur-xl scale-110" />
+        <LionLogo size={80} withBackground className="relative rounded-2xl shadow-gold-lg" />
+      </div>
+
+      <div className="text-center space-y-1">
+        <h1
+          className="text-4xl font-bold text-gold-gradient tracking-wide"
+          style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
         >
-          Back to Feed
-        </Link>
+          GAINS
+        </h1>
+        <p className="text-sm text-lion-gray-3 tracking-wide">
+          The exclusive wellness community
+        </p>
       </div>
     </div>
   );
 }
+
+// ─── Demo mode notice ────────────────────────────────────────────────────────
+
+function DemoSignIn() {
+  return (
+    <div className="w-full max-w-sm">
+      <AuthHeader />
+      <div className="rounded-2xl bg-lion-dark-2 border border-lion-dark-4 p-8 space-y-5">
+        <div className="text-center space-y-2">
+          <span className="inline-block px-3 py-1 rounded-full bg-lion-gold/10 border border-lion-gold/20 text-xs font-semibold text-lion-gold uppercase tracking-widest">
+            Demo Mode
+          </span>
+          <h2 className="text-lg font-bold text-lion-white mt-3">Welcome back</h2>
+          <p className="text-sm text-lion-gray-3 leading-relaxed">
+            Add your Supabase credentials to{" "}
+            <code className="text-lion-gold bg-lion-dark-3 px-1.5 py-0.5 rounded text-xs">.env.local</code>{" "}
+            to enable sign-in.
+          </p>
+        </div>
+
+        {/* Faded form placeholder */}
+        <div className="space-y-3 opacity-40 pointer-events-none select-none">
+          <div className="h-11 rounded-xl bg-lion-dark-3 border border-lion-dark-4" />
+          <div className="h-11 rounded-xl bg-lion-dark-3 border border-lion-dark-4" />
+          <div className="h-11 rounded-xl bg-gold-gradient" />
+        </div>
+
+        <div className="text-center pt-2">
+          <Link
+            href="/"
+            className="text-sm text-lion-gold hover:text-lion-gold-light font-medium transition-colors"
+          >
+            ← Continue to demo feed
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Real Supabase sign-in ────────────────────────────────────────────────────
 
 function SupabaseSignIn() {
   const searchParams = useSearchParams();
@@ -46,7 +93,6 @@ function SupabaseSignIn() {
       const { createSupabaseBrowserClient } = await import("@/lib/supabase");
       const supabase = createSupabaseBrowserClient();
 
-      // Resolve username → email if the user didn't type an "@"
       let email = identifier.trim();
       if (!email.includes("@")) {
         const res = await fetch(
@@ -72,11 +118,7 @@ function SupabaseSignIn() {
         return;
       }
 
-      // Ensure a DB profile exists for this user (creates one if missing)
       await fetch("/api/auth/ensure-profile", { method: "POST" });
-
-      // Full-page navigation so the browser sends fresh session cookies on the
-      // next request and the middleware picks up the auth state correctly.
       window.location.href = redirectTo;
     } catch {
       setError("An unexpected error occurred. Please try again.");
@@ -85,22 +127,29 @@ function SupabaseSignIn() {
   };
 
   return (
-    <div className="relative z-10 w-full max-w-sm">
-      <div className="rounded-xl bg-lion-dark-1 border border-lion-gold/10 shadow-dark-lg p-8">
-        <div className="text-center mb-6">
-          <h2 className="text-lg font-bold text-lion-white">Welcome back</h2>
-          <p className="text-sm text-lion-gray-3 mt-1">
+    <div className="w-full max-w-sm">
+      <AuthHeader />
+
+      <div className="rounded-2xl bg-lion-dark-2 border border-lion-dark-4 p-8">
+        <div className="text-center mb-8">
+          <h2
+            className="text-xl font-bold text-lion-white"
+            style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
+          >
+            Welcome back
+          </h2>
+          <p className="text-sm text-lion-gray-3 mt-1.5">
             Sign in to your account
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          <div className="space-y-1.5">
             <label
               htmlFor="identifier"
-              className="block text-sm font-medium text-lion-gray-4 mb-1.5"
+              className="block text-xs font-semibold text-lion-gray-4 uppercase tracking-wider"
             >
-              Email or username
+              Email or Username
             </label>
             <input
               id="identifier"
@@ -110,14 +159,14 @@ function SupabaseSignIn() {
               required
               autoComplete="username"
               placeholder="you@example.com or @username"
-              className="w-full px-4 py-2.5 rounded-xl bg-lion-dark-2 border border-lion-gold/10 text-lion-white placeholder:text-lion-gray-3 focus:outline-none focus:border-lion-gold/30 focus:ring-1 focus:ring-lion-gold/20 transition-colors"
+              className="w-full px-4 py-3 rounded-xl bg-lion-dark-3 border border-lion-dark-4 text-lion-white placeholder:text-lion-gray-2 focus:outline-none focus:border-lion-gold/40 focus:ring-1 focus:ring-lion-gold/20 transition-all text-sm"
             />
           </div>
 
-          <div>
+          <div className="space-y-1.5">
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-lion-gray-4 mb-1.5"
+              className="block text-xs font-semibold text-lion-gray-4 uppercase tracking-wider"
             >
               Password
             </label>
@@ -130,12 +179,12 @@ function SupabaseSignIn() {
                 required
                 autoComplete="current-password"
                 placeholder="Enter your password"
-                className="w-full px-4 py-2.5 rounded-xl bg-lion-dark-2 border border-lion-gold/10 text-lion-white placeholder:text-lion-gray-3 focus:outline-none focus:border-lion-gold/30 focus:ring-1 focus:ring-lion-gold/20 transition-colors pr-10"
+                className="w-full px-4 py-3 rounded-xl bg-lion-dark-3 border border-lion-dark-4 text-lion-white placeholder:text-lion-gray-2 focus:outline-none focus:border-lion-gold/40 focus:ring-1 focus:ring-lion-gold/20 transition-all text-sm pr-11"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-lion-gray-3 hover:text-lion-white transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-lion-gray-3 hover:text-lion-white transition-colors p-1"
               >
                 {showPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -147,7 +196,7 @@ function SupabaseSignIn() {
           </div>
 
           {error && (
-            <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-xl px-4 py-2.5">
+            <div className="text-sm text-red-400 bg-red-400/8 border border-red-400/15 rounded-xl px-4 py-3">
               {error}
             </div>
           )}
@@ -155,30 +204,30 @@ function SupabaseSignIn() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 rounded-xl bg-gold-gradient hover:shadow-gold-md text-lion-black font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-gold-gradient text-lion-black font-bold text-sm tracking-wide hover:shadow-gold-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Signing in...
+                Signing in…
               </>
             ) : (
-              "Sign in"
+              "Sign In"
             )}
           </button>
         </form>
 
         <div className="flex items-center gap-3 my-6">
-          <div className="flex-1 h-px bg-lion-gold/10" />
-          <span className="text-xs text-lion-gray-3">or</span>
-          <div className="flex-1 h-px bg-lion-gold/10" />
+          <div className="flex-1 h-px bg-lion-dark-4" />
+          <span className="text-xs text-lion-gray-2">or</span>
+          <div className="flex-1 h-px bg-lion-dark-4" />
         </div>
 
         <p className="text-center text-sm text-lion-gray-3">
           Don&apos;t have an account?{" "}
           <Link
             href="/sign-up"
-            className="text-lion-gold hover:text-lion-gold-light font-medium transition-colors"
+            className="text-lion-gold hover:text-lion-gold-light font-semibold transition-colors"
           >
             Sign up
           </Link>
@@ -193,26 +242,16 @@ const SignInContent = isClientDemoMode ? DemoSignIn : SupabaseSignIn;
 export default function SignInPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-lion-black px-4 -my-6">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-lion-gold/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-lion-gold/3 rounded-full blur-3xl" />
+      {/* Ambient glow effects */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-lion-gold/5 rounded-full blur-[100px]" />
+        <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-lion-gold/3 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 right-1/4 w-48 h-48 bg-gains-purple/3 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center gap-4 mb-8">
-        <div className="w-16 h-16 rounded-2xl bg-gold-gradient flex items-center justify-center shadow-gold-lg">
-          <Crown className="w-8 h-8 text-lion-black" />
-        </div>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-wider text-gold-gradient">
-            GAINS
-          </h1>
-          <p className="text-sm text-lion-gray-3 mt-1">
-            Welcome back, champion
-          </p>
-        </div>
+      <div className="relative z-10 w-full flex justify-center">
+        <SignInContent />
       </div>
-
-      <SignInContent />
     </div>
   );
 }
