@@ -23,6 +23,12 @@ export const metadata: Metadata = {
     "motivation",
     "health",
   ],
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Gains",
+  },
   openGraph: {
     title: "Gains | Wellness Social",
     description:
