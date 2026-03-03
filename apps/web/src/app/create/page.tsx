@@ -1480,7 +1480,7 @@ export default function CreatePage() {
           {/* Post error */}
           {postError ? (
             <div className="rounded-xl bg-red-400/10 border border-red-400/20 px-4 py-3 text-sm text-red-400">
-              {(postError as Error)?.message ?? "Failed to create post. Are you signed in?"}
+              {typeof postError === "string" ? postError : "Failed to create post. Are you signed in?"}
             </div>
           ) : null}
 

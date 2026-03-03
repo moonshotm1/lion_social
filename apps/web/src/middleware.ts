@@ -62,6 +62,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/api/invite/") ||
       pathname.startsWith("/api/upload") ||
       pathname.startsWith("/api/profile") ||
+      pathname.startsWith("/api/post/") ||
       pathname.startsWith("/auth/callback");
 
     // Unauthenticated user hitting a protected page → sign-in

@@ -1,7 +1,7 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { trpc } from "@/lib/trpc";
 import { isClientDemoMode } from "@/lib/env-client";
 
 interface CreatePostInput {
@@ -14,7 +14,7 @@ interface CreatePostInput {
 interface UseCreatePostResult {
   createPost: (input: CreatePostInput) => void;
   isLoading: boolean;
-  error: unknown;
+  error: string | null;
 }
 
 function useCreatePostDemo(): UseCreatePostResult {
@@ -35,20 +35,36 @@ function useCreatePostDemo(): UseCreatePostResult {
 
 function useCreatePostReal(): UseCreatePostResult {
   const router = useRouter();
-  const utils = trpc.useUtils();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const mutation = trpc.post.create.useMutation({
-    onSuccess: () => {
-      utils.post.feed.invalidate();
+  const createPost = async (input: CreatePostInput) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/post/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = body.error ?? `Server error ${res.status}`;
+        console.error("[use-create-post] Error:", msg, "full body:", body);
+        setError(msg);
+        return;
+      }
       router.push("/");
-    },
-  });
-
-  return {
-    createPost: (input: CreatePostInput) => mutation.mutate(input),
-    isLoading: mutation.isLoading,
-    error: mutation.error,
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to create post";
+      console.error("[use-create-post] Unexpected error:", msg);
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  return { createPost, isLoading, error };
 }
 
 export const useCreatePost = isClientDemoMode

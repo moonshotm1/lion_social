@@ -1,7 +1,15 @@
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+
+async function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 async function getAuthUser() {
   const { createSupabaseServerClient } = await import('@/lib/supabase')
@@ -19,12 +27,15 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { prisma } = await import('@lion/database')
-    const user = await prisma.user.findUnique({
-      where: { supabaseId: authUser.id },
-    })
+    const supabase = await getSupabase()
+    const { data: user, error } = await supabase
+      .from('User')
+      .select('id, username, bio, avatarUrl, supabaseId, createdAt')
+      .eq('supabaseId', authUser.id)
+      .single()
 
-    if (!user) {
+    if (error || !user) {
+      console.error('[profile GET] DB error:', error?.message)
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
@@ -68,18 +79,18 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const { prisma } = await import('@lion/database')
+    const supabase = await getSupabase()
 
     // Check username uniqueness if changing
     if (body.username) {
-      const existing = await prisma.user.findUnique({
-        where: { username: body.username },
-      })
-      const currentUser = await prisma.user.findUnique({
-        where: { supabaseId: authUser.id },
-        select: { id: true },
-      })
-      if (existing && existing.id !== currentUser?.id) {
+      const { data: existing } = await supabase
+        .from('User')
+        .select('id')
+        .eq('username', body.username)
+        .neq('supabaseId', authUser.id)
+        .maybeSingle()
+
+      if (existing) {
         return NextResponse.json(
           { error: 'Username is already taken' },
           { status: 409 }
@@ -87,14 +98,22 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const updated = await prisma.user.update({
-      where: { supabaseId: authUser.id },
-      data: {
-        ...(body.username !== undefined && { username: body.username }),
-        ...(body.bio !== undefined && { bio: body.bio }),
-        ...(body.avatarUrl !== undefined && { avatarUrl: body.avatarUrl }),
-      },
-    })
+    const updates: Record<string, string> = {}
+    if (body.username !== undefined) updates.username = body.username
+    if (body.bio !== undefined) updates.bio = body.bio
+    if (body.avatarUrl !== undefined) updates.avatarUrl = body.avatarUrl
+
+    const { data: updated, error: updateError } = await supabase
+      .from('User')
+      .update(updates)
+      .eq('supabaseId', authUser.id)
+      .select('id, username, bio, avatarUrl, supabaseId, createdAt')
+      .single()
+
+    if (updateError) {
+      console.error('[profile PATCH] DB error:', updateError.message)
+      throw updateError
+    }
 
     return NextResponse.json(updated)
   } catch (err) {
