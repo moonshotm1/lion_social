@@ -352,7 +352,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
                 @{post.author.username}
               </span>
               <span className="text-lion-gray-2 text-xs">&middot;</span>
-              <span className="text-xs text-lion-gray-3">
+              <span className="text-xs text-lion-gray-3" suppressHydrationWarning>
                 {getTimeAgo(post.createdAt)}
               </span>
             </div>

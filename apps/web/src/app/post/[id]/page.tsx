@@ -70,7 +70,7 @@ function CommentList({ comments }: { comments: PostComment[] }) {
                 >
                   {comment.user.username}
                 </Link>
-                <span className="text-xs text-lion-gray-2">{timeAgo}</span>
+                <span className="text-xs text-lion-gray-2" suppressHydrationWarning>{timeAgo}</span>
               </div>
               <p className="text-sm text-lion-gray-4 leading-relaxed">
                 {comment.content}

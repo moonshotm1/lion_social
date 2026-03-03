@@ -131,7 +131,7 @@ export default function NotificationsPage() {
                     {notification.message}
                   </span>
                 </p>
-                <p className="text-xs text-lion-gray-2 mt-1">
+                <p className="text-xs text-lion-gray-2 mt-1" suppressHydrationWarning>
                   {getTimeAgo(notification.createdAt)}
                 </p>
               </div>
