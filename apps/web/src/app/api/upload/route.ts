@@ -1,135 +1,143 @@
-export const dynamic = 'force-dynamic';
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
 
-import { NextRequest } from "next/server";
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-const IMAGE_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-]);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function ensureBucket(supabase: any, bucket: string, isVideo: boolean) {
+  console.log(`[upload] Ensuring bucket exists: ${bucket}`)
+  const sizeLimit = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024
+  const allowedMimeTypes = bucket === 'avatars'
+    ? ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+    : ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
+       'video/mp4', 'video/quicktime', 'video/avi', 'video/webm']
 
-const VIDEO_MIME_TYPES = new Set([
-  "video/mp4",
-  "video/quicktime",
-  "video/avi",
-  "video/webm",
-]);
+  const { error: createError } = await supabase.storage.createBucket(bucket, {
+    public: true,
+    fileSizeLimit: sizeLimit,
+    allowedMimeTypes,
+  })
 
-export async function POST(req: NextRequest) {
+  if (createError) {
+    if (createError.message.toLowerCase().includes('already exists')) {
+      console.log(`[upload] Bucket "${bucket}" already exists — updating settings`)
+      await supabase.storage.updateBucket(bucket, {
+        public: true,
+        fileSizeLimit: sizeLimit,
+        allowedMimeTypes,
+      })
+    } else {
+      console.error(`[upload] Bucket creation error:`, createError.message)
+    }
+  } else {
+    console.log(`[upload] Bucket "${bucket}" created successfully`)
+  }
+}
+
+export async function POST(request: NextRequest) {
+  console.log('[upload] POST /api/upload called')
+
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    if (!supabaseUrl) {
-      return Response.json({ error: "Storage not configured" }, { status: 503 });
+    console.log('[upload] Supabase URL set:', !!supabaseUrl)
+    console.log('[upload] Service role key set:', !!serviceRoleKey)
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error('[upload] Missing Supabase env vars')
+      return NextResponse.json(
+        { error: 'Storage not configured — missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' },
+        { status: 503 }
+      )
     }
 
-    // Verify the caller is authenticated
-    const { createSupabaseServerClient } = await import("@/lib/supabase");
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const supabase = createClient(supabaseUrl, serviceRoleKey)
+    console.log('[upload] Supabase client created')
 
-    if (!user) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    console.log('[upload] Parsing form data...')
+    const formData = await request.formData()
+    const file = formData.get('file') as File | null
+    const bucketParam = (formData.get('bucket') as string | null) ?? 'posts'
 
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
+    console.log('[upload] File received:', file?.name, file?.size, file?.type)
+    console.log('[upload] Bucket requested:', bucketParam)
 
     if (!file) {
-      return Response.json({ error: "No file provided" }, { status: 400 });
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Validate bucket name to prevent injection
-    const requestedBucket = (formData.get("bucket") as string | null) ?? "posts";
-    const allowedBuckets = ["posts", "avatars"] as const;
-    type AllowedBucket = (typeof allowedBuckets)[number];
-    const bucket: AllowedBucket = (allowedBuckets as readonly string[]).includes(requestedBucket)
-      ? (requestedBucket as AllowedBucket)
-      : "posts";
+    // Sanitise bucket name
+    const bucket = ['posts', 'avatars'].includes(bucketParam) ? bucketParam : 'posts'
+    console.log('[upload] Using bucket:', bucket)
 
-    // Validate MIME type
-    const mimeType = file.type || "application/octet-stream";
-    const isImage = IMAGE_MIME_TYPES.has(mimeType);
-    const isVideo = VIDEO_MIME_TYPES.has(mimeType);
+    const isVideo = file.type.startsWith('video/')
+    const isImage = file.type.startsWith('image/')
 
-    if (bucket === "avatars" && !isImage) {
-      return Response.json({ error: "Avatars must be image files (jpg, png, webp, gif)" }, { status: 400 });
-    }
-    if (bucket === "posts" && !isImage && !isVideo) {
-      return Response.json({ error: "Only images (jpg/png/webp/gif) and videos (mp4/mov/avi/webm) are allowed" }, { status: 400 });
+    if (!isVideo && !isImage) {
+      console.error('[upload] Unsupported file type:', file.type)
+      return NextResponse.json(
+        { error: `Unsupported file type: ${file.type}` },
+        { status: 400 }
+      )
     }
 
-    // Enforce size limits before upload
-    const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (bucket === 'avatars' && !isImage) {
+      return NextResponse.json(
+        { error: 'Avatars must be image files' },
+        { status: 400 }
+      )
+    }
+
+    const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024
     if (file.size > maxSize) {
-      const limit = isVideo ? "50 MB" : "10 MB";
-      return Response.json({ error: `File too large. Maximum size is ${limit}` }, { status: 400 });
+      const limit = isVideo ? '50 MB' : '10 MB'
+      console.error(`[upload] File too large: ${file.size} bytes (max ${maxSize})`)
+      return NextResponse.json(
+        { error: `File too large. Maximum size is ${limit}` },
+        { status: 400 }
+      )
     }
 
-    // Use service role client so we can create/update buckets and bypass RLS.
-    const { createClient } = await import("@supabase/supabase-js");
-    const storageClient = serviceRoleKey
-      ? createClient(supabaseUrl, serviceRoleKey)
-      : supabase;
+    // Ensure bucket exists with correct settings
+    await ensureBucket(supabase, bucket, isVideo)
 
-    // Ensure the bucket exists with correct settings (only with service role)
-    if (serviceRoleKey) {
-      const isAvatarBucket = bucket === "avatars";
-      const bucketSizeLimit = isAvatarBucket ? 10 * 1024 * 1024 : 50 * 1024 * 1024;
-      const allowedMimeTypes = isAvatarBucket ? ["image/*"] : ["image/*", "video/*"];
+    console.log('[upload] Reading file as ArrayBuffer...')
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
+    console.log('[upload] Buffer size:', buffer.length)
 
-      const { error: createError } = await storageClient.storage.createBucket(bucket, {
-        public: true,
-        allowedMimeTypes,
-        fileSizeLimit: bucketSizeLimit,
-      });
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? (isVideo ? 'mp4' : 'jpg')
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    console.log('[upload] Uploading to path:', fileName)
 
-      if (createError) {
-        if (createError.message.toLowerCase().includes("already exists")) {
-          // Bucket exists — update settings to ensure correct limits
-          await storageClient.storage.updateBucket(bucket, {
-            public: true,
-            allowedMimeTypes,
-            fileSizeLimit: bucketSizeLimit,
-          });
-        } else {
-          console.error("[upload] Bucket creation failed:", createError.message);
-        }
-      }
-    }
-
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? (isVideo ? "mp4" : "jpg");
-    const path = `${user.id}/${Date.now()}.${ext}`;
-
-    // Convert to ArrayBuffer for reliable upload in Node.js runtime
-    const arrayBuffer = await file.arrayBuffer();
-
-    const { data, error } = await storageClient.storage
+    const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, arrayBuffer, {
-        contentType: mimeType,
-        cacheControl: "3600",
-        upsert: bucket === "avatars",
-      });
+      .upload(fileName, buffer, {
+        contentType: file.type,
+        upsert: bucket === 'avatars',
+      })
 
     if (error) {
-      console.error("[upload] Upload failed:", error.message);
-      return Response.json({ error: error.message }, { status: 500 });
+      console.error('[upload] Supabase storage error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const {
-      data: { publicUrl },
-    } = storageClient.storage.from(bucket).getPublicUrl(data.path);
+    console.log('[upload] Upload successful, path:', data.path)
 
-    return Response.json({ url: publicUrl });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Upload failed";
-    console.error("[upload] Unexpected error:", err);
-    return Response.json({ error: message }, { status: 500 });
+    const { data: urlData } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(data.path)
+
+    console.log('[upload] Public URL:', urlData.publicUrl)
+
+    return NextResponse.json({ url: urlData.publicUrl })
+  } catch (err) {
+    console.error('[upload] Unexpected error:', err)
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Upload failed' },
+      { status: 500 }
+    )
   }
 }

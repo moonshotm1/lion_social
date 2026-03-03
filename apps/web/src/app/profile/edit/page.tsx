@@ -1,37 +1,72 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Check, AlertCircle, Loader2 } from "lucide-react";
-import { useCurrentUser } from "@/hooks/use-current-user";
-import { trpc } from "@/lib/trpc";
-import { isClientDemoMode } from "@/lib/env-client";
+
+interface UserProfile {
+  id: string;
+  username: string;
+  bio: string | null;
+  avatarUrl: string | null;
+}
 
 export default function EditProfilePage() {
   const router = useRouter();
-  const { user, isSignedIn, isLoading: userLoading } = useCurrentUser();
 
-  // ── Form state (seeded from current user once loaded) ──
+  // ── Profile state ──
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // ── Form state ──
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
-  // Seed form once the user loads
-  useEffect(() => {
-    if (user) {
-      setUsername(user.username);
-      setBio(user.bio ?? "");
-      setAvatarPreview(user.avatar ?? null);
-    }
-  }, [user?.id]);
-
-  // ── Username availability check (debounced) ──
+  // ── Username availability ──
   const [usernameToCheck, setUsernameToCheck] = useState("");
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [isUsernameTaken, setIsUsernameTaken] = useState(false);
+  const [isUsernameAvailable, setIsUsernameAvailable] = useState(false);
 
+  // ── Submit state ──
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Load profile on mount ──
+  useEffect(() => {
+    fetch("/api/profile")
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? "Failed to load profile");
+        }
+        return res.json() as Promise<UserProfile>;
+      })
+      .then((data) => {
+        setProfile(data);
+        setUsername(data.username);
+        setBio(data.bio ?? "");
+        setAvatarPreview(data.avatarUrl ?? null);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        setLoadError(err.message);
+        setIsLoading(false);
+      });
+  }, []);
+
+  // ── Username format validation ──
   const usernameFormatError = (() => {
+    if (username.length === 0) return null;
     if (username.length < 3) return "Must be at least 3 characters";
     if (username.length > 30) return "Must be 30 characters or fewer";
     if (!/^[a-zA-Z0-9_]+$/.test(username))
@@ -39,56 +74,45 @@ export default function EditProfilePage() {
     return null;
   })();
 
-  // Debounce: only check availability when format is valid and username changed
+  // ── Debounced availability check ──
+  const checkAvailability = useCallback(async (name: string) => {
+    setIsCheckingUsername(true);
+    setIsUsernameTaken(false);
+    setIsUsernameAvailable(false);
+    try {
+      const res = await fetch(`/api/trpc/user.byUsername?batch=1&input=${encodeURIComponent(JSON.stringify({ "0": { json: { username: name } } }))}`)
+      if (res.ok) {
+        const json = await res.json();
+        const found = json?.[0]?.result?.data?.json;
+        if (found && found.id !== profile?.id) {
+          setIsUsernameTaken(true);
+        } else {
+          setIsUsernameAvailable(true);
+        }
+      }
+    } catch {
+      // ignore — let user try to save
+    } finally {
+      setIsCheckingUsername(false);
+    }
+  }, [profile?.id]);
+
   useEffect(() => {
-    if (usernameFormatError || !username || username === user?.username) {
+    if (usernameFormatError || !username || username === profile?.username) {
       setUsernameToCheck("");
+      setIsUsernameTaken(false);
+      setIsUsernameAvailable(false);
       return;
     }
+    setIsUsernameAvailable(false);
+    setIsUsernameTaken(false);
     const timer = setTimeout(() => setUsernameToCheck(username), 500);
     return () => clearTimeout(timer);
-  }, [username, user?.username, usernameFormatError]);
+  }, [username, profile?.username, usernameFormatError]);
 
-  const availabilityQuery = trpc.user.byUsername.useQuery(
-    { username: usernameToCheck },
-    {
-      enabled: !isClientDemoMode && !!usernameToCheck,
-      staleTime: 30_000,
-      retry: false,
-    }
-  );
-
-  const isUsernameTaken =
-    !!availabilityQuery.data &&
-    availabilityQuery.data.id !== user?.id;
-
-  const isCheckingUsername =
-    availabilityQuery.isFetching && usernameToCheck !== "";
-
-  const usernameError = usernameFormatError ?? (isUsernameTaken ? "Username is already taken" : null);
-
-  // ── Upload & mutation state ──
-  const [isUploading, setIsUploading] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // ── tRPC update mutation ──
-  const updateMutation = isClientDemoMode
-    ? null
-    : // eslint-disable-next-line react-hooks/rules-of-hooks
-      trpc.user.update.useMutation({
-        onSuccess: (updatedUser) => {
-          setSaveSuccess(true);
-          setTimeout(() => {
-            router.push(`/profile/${updatedUser.username}`);
-          }, 800);
-        },
-        onError: (err) => {
-          setSaveError(err.message);
-        },
-      });
+  useEffect(() => {
+    if (usernameToCheck) checkAvailability(usernameToCheck);
+  }, [usernameToCheck, checkAvailability]);
 
   // ── Avatar selection ──
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,18 +124,17 @@ export default function EditProfilePage() {
     reader.readAsDataURL(file);
   };
 
-  const isValid =
-    !usernameError &&
-    !isCheckingUsername &&
-    username.trim().length > 0;
+  const usernameError = usernameFormatError ?? (isUsernameTaken ? "Username is already taken" : null);
+  const isValid = !usernameError && !isCheckingUsername && username.trim().length >= 3;
 
   // ── Submit ──
   const handleSave = async () => {
-    if (!isValid) return;
+    if (!isValid || !profile) return;
     setSaveError(null);
 
     let newAvatarUrl: string | undefined;
 
+    // 1. Upload avatar if changed
     if (avatarFile) {
       setIsUploading(true);
       try {
@@ -119,35 +142,45 @@ export default function EditProfilePage() {
         fd.append("file", avatarFile);
         fd.append("bucket", "avatars");
         const res = await fetch("/api/upload", { method: "POST", body: fd });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error ?? "Avatar upload failed");
-        }
-        const { url } = await res.json();
-        newAvatarUrl = url as string;
-      } catch (err: any) {
-        setSaveError(err.message);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error ?? "Avatar upload failed");
+        newAvatarUrl = body.url as string;
+      } catch (err: unknown) {
+        setSaveError(err instanceof Error ? err.message : "Avatar upload failed");
         setIsUploading(false);
         return;
-      } finally {
-        setIsUploading(false);
       }
+      setIsUploading(false);
     }
 
-    if (isClientDemoMode) {
-      router.push(`/profile/${username}`);
-      return;
-    }
+    // 2. Save profile via /api/profile
+    setIsSaving(true);
+    try {
+      const payload: Record<string, string> = {};
+      if (username !== profile.username) payload.username = username;
+      if (bio !== (profile.bio ?? "")) payload.bio = bio;
+      if (newAvatarUrl) payload.avatarUrl = newAvatarUrl;
 
-    updateMutation?.mutate({
-      username: username !== user?.username ? username : undefined,
-      bio: bio !== (user?.bio ?? "") ? bio : undefined,
-      avatarUrl: newAvatarUrl,
-    });
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Failed to save profile");
+
+      setSaveSuccess(true);
+      const saved = body as UserProfile;
+      setTimeout(() => router.push(`/profile/${saved.username}`), 800);
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save profile");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // ── Auth gate ──
-  if (userLoading) {
+  // ── Loading / error states ──
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-32">
         <div className="w-8 h-8 rounded-full border-2 border-lion-gold/30 border-t-lion-gold animate-spin" />
@@ -155,10 +188,10 @@ export default function EditProfilePage() {
     );
   }
 
-  if (!isSignedIn || !user) {
+  if (loadError || !profile) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
-        <p className="text-sm text-lion-gray-3">Sign in to edit your profile.</p>
+        <p className="text-sm text-red-400">{loadError ?? "Profile not found"}</p>
         <Link href="/sign-in" className="btn-gold px-6 py-2.5 text-sm">
           Sign In
         </Link>
@@ -166,14 +199,14 @@ export default function EditProfilePage() {
     );
   }
 
-  const isBusy = isUploading || (updateMutation?.isPending ?? false);
+  const isBusy = isUploading || isSaving;
 
   return (
     <div className="space-y-6 animate-fade-in pb-8">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link
-          href={`/profile/${user.username}`}
+          href={`/profile/${profile.username}`}
           className="p-2 rounded-xl text-lion-gray-3 hover:text-lion-white hover:bg-lion-dark-3 transition-all duration-200"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -248,12 +281,11 @@ export default function EditProfilePage() {
                 maxLength={30}
                 className="input-dark text-sm pl-7 pr-9"
               />
-              {/* Availability indicator */}
               <div className="absolute right-3 top-1/2 -translate-y-1/2">
                 {isCheckingUsername && (
                   <Loader2 className="w-4 h-4 text-lion-gray-3 animate-spin" />
                 )}
-                {!isCheckingUsername && usernameToCheck && !isUsernameTaken && !usernameFormatError && (
+                {!isCheckingUsername && isUsernameAvailable && (
                   <Check className="w-4 h-4 text-gains-green" />
                 )}
                 {!isCheckingUsername && isUsernameTaken && (
@@ -262,22 +294,19 @@ export default function EditProfilePage() {
               </div>
             </div>
 
-            {/* Format error */}
             {usernameFormatError && username.length > 0 && (
               <p className="text-xs text-red-400 mt-2 flex items-center gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5" />
                 {usernameFormatError}
               </p>
             )}
-            {/* Availability error */}
             {!usernameFormatError && isUsernameTaken && (
               <p className="text-xs text-red-400 mt-2 flex items-center gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5" />
                 Username is already taken
               </p>
             )}
-            {/* Available confirmation */}
-            {!usernameFormatError && !isUsernameTaken && !isCheckingUsername && usernameToCheck && (
+            {!usernameFormatError && isUsernameAvailable && (
               <p className="text-xs text-gains-green mt-2 flex items-center gap-1.5">
                 <Check className="w-3.5 h-3.5" />
                 Username is available
@@ -330,7 +359,7 @@ export default function EditProfilePage() {
       {/* Actions */}
       <div className="flex gap-3">
         <Link
-          href={`/profile/${user.username}`}
+          href={`/profile/${profile.username}`}
           className="btn-ghost-gold flex-1 text-center text-sm"
         >
           Cancel
@@ -347,7 +376,7 @@ export default function EditProfilePage() {
         >
           {isUploading
             ? "Uploading photo..."
-            : updateMutation?.isPending
+            : isSaving
             ? "Saving..."
             : saveSuccess
             ? "Saved!"
