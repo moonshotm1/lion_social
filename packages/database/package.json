@@ -6,7 +6,7 @@
   "types": "./index.ts",
   "scripts": {
     "generate": "prisma generate",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate --schema=./prisma/schema.prisma",
     "push": "prisma db push",
     "studio": "prisma studio"
   },
