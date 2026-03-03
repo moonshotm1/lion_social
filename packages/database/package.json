@@ -6,8 +6,12 @@
   "types": "./index.ts",
   "scripts": {
     "generate": "prisma generate",
+    "postinstall": "prisma generate",
     "push": "prisma db push",
     "studio": "prisma studio"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^5.19.0"
