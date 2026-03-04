@@ -1,6 +1,6 @@
 "use client";
 
-import { trpc } from "@/lib/trpc";
+import { useState, useEffect } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockUsers, mockPosts } from "@/lib/mock-data";
 import { transformUser, transformPost } from "@/lib/transforms";
@@ -21,21 +21,45 @@ function useUserProfileDemo(username: string): UseUserProfileResult {
 }
 
 function useUserProfileReal(username: string): UseUserProfileResult {
-  const userQuery = trpc.user.byUsername.useQuery({ username }, { enabled: !!username });
-  const user = userQuery.data ? transformUser(userQuery.data) : null;
+  const [user, setUser] = useState<MockUser | null>(null);
+  const [posts, setPosts] = useState<MockPost[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
 
-  const postsQuery = trpc.post.byUser.useQuery(
-    { userId: userQuery.data?.id ?? "" },
-    { enabled: !!userQuery.data?.id }
-  );
-  const posts = (Array.isArray(postsQuery.data?.posts) ? postsQuery.data!.posts : []).map(transformPost);
+  useEffect(() => {
+    if (!username) return;
 
-  return {
-    user,
-    posts,
-    isLoading: userQuery.isLoading || postsQuery.isLoading,
-    error: userQuery.error || postsQuery.error,
-  };
+    setIsLoading(true);
+    setUser(null);
+    setPosts([]);
+    setError(null);
+
+    fetch(`/api/user/by-username?username=${encodeURIComponent(username)}`)
+      .then(async (res) => {
+        const userData = await res.json();
+        if (!res.ok) throw new Error(userData.error ?? "User not found");
+
+        const transformedUser = transformUser(userData);
+        setUser(transformedUser);
+
+        // Fetch user's posts
+        return fetch(`/api/post/by-user?userId=${encodeURIComponent(userData.id)}`);
+      })
+      .then(async (res) => {
+        if (!res) return;
+        const postsData = await res.json();
+        if (!res.ok) throw new Error(postsData.error ?? "Failed to fetch posts");
+        setPosts((postsData.posts ?? []).map(transformPost));
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error("[useUserProfile] Error:", err);
+        setError(err);
+        setIsLoading(false);
+      });
+  }, [username]);
+
+  return { user, posts, isLoading, error };
 }
 
 export const useUserProfile = isClientDemoMode

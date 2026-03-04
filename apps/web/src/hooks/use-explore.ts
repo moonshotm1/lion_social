@@ -1,6 +1,6 @@
 "use client";
 
-import { trpc } from "@/lib/trpc";
+import { useState, useEffect } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockPosts, mockUsers } from "@/lib/mock-data";
 import { transformPost } from "@/lib/transforms";
@@ -24,10 +24,25 @@ function useExploreDemo(): UseExploreResult {
 }
 
 function useExploreReal(): UseExploreResult {
-  const trendingQuery = trpc.post.trending.useQuery({ limit: 20 });
-  const trendingPosts = (Array.isArray(trendingQuery.data) ? trendingQuery.data : []).map(transformPost);
+  const [trendingPosts, setTrendingPosts] = useState<MockPost[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Extract unique authors from trending posts as featured users
+  useEffect(() => {
+    fetch("/api/post/feed?limit=30")
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to fetch posts");
+        const posts = (data.posts ?? []).map(transformPost);
+        setTrendingPosts(posts);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error("[useExplore] Error:", err);
+        setIsLoading(false);
+      });
+  }, []);
+
+  // Extract unique authors as featured users
   const featuredUsers = Array.from(
     new Map(trendingPosts.map((p) => [p.author.id, p.author])).values()
   );
@@ -35,7 +50,7 @@ function useExploreReal(): UseExploreResult {
   return {
     trendingPosts,
     featuredUsers,
-    isLoading: trendingQuery.isLoading,
+    isLoading,
     filterByCategory: (cat) =>
       cat === "all"
         ? trendingPosts

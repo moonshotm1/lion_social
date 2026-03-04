@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockUsers } from "@/lib/mock-data";
+import { transformUser } from "@/lib/transforms";
 import type { MockUser } from "@/lib/types";
 
 interface UseCurrentUserResult {
@@ -21,31 +22,47 @@ function useCurrentUserDemo(): UseCurrentUserResult {
 
 function useCurrentUserReal(): UseCurrentUserResult {
   const { useAuth } = require("@/components/providers/auth-provider");
-  const { trpc } = require("@/lib/trpc");
-  const { transformUser } = require("@/lib/transforms");
-
   const { user: supabaseUser, isLoading: authLoading } = useAuth();
-  const dbUserQuery = trpc.user.bySupabaseId.useQuery(
-    { supabaseId: supabaseUser?.id ?? "" },
-    { enabled: !!supabaseUser?.id, retry: false }
-  );
 
-  // If signed in but no DB profile exists yet, call ensure-profile to create it
-  // then refetch. This handles the case where the tRPC context didn't create it.
+  const [user, setUser] = useState<MockUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
-    if (supabaseUser && dbUserQuery.isSuccess && !dbUserQuery.data) {
-      fetch("/api/auth/ensure-profile", { method: "POST" })
-        .then(() => dbUserQuery.refetch())
-        .catch(() => {});
-    }
-  }, [supabaseUser, dbUserQuery.isSuccess, dbUserQuery.data]);
+    if (authLoading) return;
 
-  const user = dbUserQuery.data ? transformUser(dbUserQuery.data) : null;
+    if (!supabaseUser) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    fetch("/api/user/me")
+      .then(async (res) => {
+        if (res.status === 404) {
+          // Profile missing — try to create it then retry
+          await fetch("/api/auth/ensure-profile", { method: "POST" }).catch(() => {});
+          const retry = await fetch("/api/user/me");
+          if (!retry.ok) throw new Error("Profile not found after creation");
+          return retry.json();
+        }
+        if (!res.ok) throw new Error("Failed to fetch profile");
+        return res.json();
+      })
+      .then((data) => {
+        setUser(transformUser(data));
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error("[useCurrentUser] Error:", err);
+        setUser(null);
+        setIsLoading(false);
+      });
+  }, [supabaseUser?.id, authLoading]);
 
   return {
     user,
     isSignedIn: !!supabaseUser,
-    isLoading: authLoading || dbUserQuery.isLoading,
+    isLoading: authLoading || isLoading,
   };
 }
 

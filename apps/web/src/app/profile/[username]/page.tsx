@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -14,13 +14,10 @@ import {
   Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { formatCount } from "@/lib/types";
-import { trpc } from "@/lib/trpc";
 import { transformPost } from "@/lib/transforms";
-import { isClientDemoMode } from "@/lib/env-client";
 import type { MockPost } from "@/lib/types";
 
 type ProfileTab = "posts" | "likes" | "saved";
@@ -54,18 +51,28 @@ export default function ProfilePage({
     (params.username === "me" || currentUser.username === params.username);
 
   // ── Liked posts (fetched when "likes" tab is active) ──
-  const likedQuery = trpc.like.byUser.useQuery(
-    { userId: profileUser?.id ?? "" },
-    { enabled: !isClientDemoMode && !!profileUser?.id && activeTab === "likes" }
-  );
-  const likedPosts: MockPost[] = (likedQuery.data ?? []).map(transformPost);
+  const [likedPosts, setLikedPosts] = useState<MockPost[]>([]);
+  const [likedLoading, setLikedLoading] = useState(false);
+  useEffect(() => {
+    if (activeTab !== "likes" || !profileUser?.id) return;
+    setLikedLoading(true);
+    fetch(`/api/post/liked?userId=${encodeURIComponent(profileUser.id)}`)
+      .then((r) => r.json())
+      .then((data) => { setLikedPosts((data.posts ?? []).map(transformPost)); setLikedLoading(false); })
+      .catch(() => setLikedLoading(false));
+  }, [activeTab, profileUser?.id]);
 
   // ── Saved posts (fetched when "saved" tab is active) ──
-  const savedQuery = trpc.save.byUser.useQuery(
-    { userId: profileUser?.id ?? "" },
-    { enabled: !isClientDemoMode && !!profileUser?.id && activeTab === "saved" }
-  );
-  const savedPosts: MockPost[] = (savedQuery.data ?? []).map(transformPost);
+  const [savedPosts, setSavedPosts] = useState<MockPost[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+  useEffect(() => {
+    if (activeTab !== "saved" || !profileUser?.id) return;
+    setSavedLoading(true);
+    fetch(`/api/post/saved?userId=${encodeURIComponent(profileUser.id)}`)
+      .then((r) => r.json())
+      .then((data) => { setSavedPosts((data.posts ?? []).map(transformPost)); setSavedLoading(false); })
+      .catch(() => setSavedLoading(false));
+  }, [activeTab, profileUser?.id]);
 
   // Which posts to show in the grid
   const gridPosts =
@@ -73,8 +80,8 @@ export default function ProfilePage({
     : activeTab === "saved" ? savedPosts
     : userPosts;
   const gridLoading =
-    activeTab === "likes" ? likedQuery.isLoading
-    : activeTab === "saved" ? savedQuery.isLoading
+    activeTab === "likes" ? likedLoading
+    : activeTab === "saved" ? savedLoading
     : isLoading;
   const gridEmpty: Record<ProfileTab, string> = {
     posts: "No posts yet",
