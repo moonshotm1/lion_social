@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "REPO=$(git rev-parse --show-toplevel) && npx prisma generate --schema=$REPO/packages/database/prisma/schema.prisma && cd $REPO/apps/web && next build",
+  "buildCommand": "cd ../.. && npx prisma generate --schema=packages/database/prisma/schema.prisma && cd apps/web && next build",
   "outputDirectory": "apps/web/.next",
   "installCommand": "npm install",
   "framework": "nextjs"
