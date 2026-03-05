@@ -12,6 +12,9 @@ import {
   MoreHorizontal,
   Pencil,
   Users,
+  Copy,
+  Check,
+  Ticket,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUserProfile } from "@/hooks/use-user-profile";
@@ -73,6 +76,36 @@ export default function ProfilePage({
       .then((data) => { setSavedPosts((data.posts ?? []).map(transformPost)); setSavedLoading(false); })
       .catch(() => setSavedLoading(false));
   }, [activeTab, profileUser?.id]);
+
+  // ── Invite data (fetched for own profile) ──
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [inviteCount, setInviteCount] = useState(5);
+  const [invitesUsed, setInvitesUsed] = useState(0);
+  const [inviteList, setInviteList] = useState<{ usedByUsername: string | null; usedAt: string | null }[]>([]);
+  const [copiedCode, setCopiedCode] = useState(false);
+  useEffect(() => {
+    if (!isOwnProfile) return;
+    fetch("/api/user/me")
+      .then((r) => r.json())
+      .then((data) => {
+        setInviteCode(data.inviteCode ?? null);
+        setInviteCount(data.inviteCount ?? 5);
+        setInvitesUsed(data.invitesUsed ?? 0);
+      })
+      .catch(() => {});
+    fetch("/api/invite/list")
+      .then((r) => r.json())
+      .then((data) => { setInviteList(data.invites ?? []); })
+      .catch(() => {});
+  }, [isOwnProfile]);
+
+  const handleCopyCode = () => {
+    if (!inviteCode) return;
+    navigator.clipboard.writeText(inviteCode).then(() => {
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    });
+  };
 
   // Which posts to show in the grid
   const gridPosts =
@@ -241,6 +274,59 @@ export default function ProfilePage({
           </div>
         </div>
 
+        {/* Invite section — own profile only */}
+        {isOwnProfile && inviteCode && (
+          <div className="rounded-xl border border-lion-gold/15 bg-lion-dark-2/60 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Ticket className="w-4 h-4 text-lion-gold" />
+              <span className="text-xs font-semibold text-lion-gold uppercase tracking-wider">
+                Your Invite Code
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 flex items-center gap-2 bg-lion-dark-3 rounded-lg px-3 py-2 border border-lion-gold/15">
+                <span className="font-mono text-sm font-bold text-lion-gold tracking-widest flex-1">
+                  {inviteCode}
+                </span>
+                <button
+                  onClick={handleCopyCode}
+                  className="text-lion-gray-3 hover:text-lion-gold transition-colors shrink-0"
+                  title="Copy code"
+                >
+                  {copiedCode ? (
+                    <Check className="w-4 h-4 text-gains-green" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-xs text-lion-gray-3">
+              <span>{inviteCount - invitesUsed} of {inviteCount} invites remaining</span>
+              <Link
+                href="/profile/edit"
+                className="text-lion-gold hover:text-lion-gold-light transition-colors"
+              >
+                Customize
+              </Link>
+            </div>
+            {inviteList.filter((i) => i.usedByUsername).length > 0 && (
+              <div className="space-y-1 pt-1 border-t border-lion-gold/10">
+                <p className="text-xs text-lion-gray-3 mb-2">Invited members:</p>
+                {inviteList.filter((i) => i.usedByUsername).map((invite, idx) => (
+                  <Link
+                    key={idx}
+                    href={`/profile/${invite.usedByUsername}`}
+                    className="flex items-center gap-2 text-xs text-lion-gray-4 hover:text-lion-white transition-colors"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-lion-gold/40 shrink-0" />
+                    @{invite.usedByUsername}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tab Bar */}

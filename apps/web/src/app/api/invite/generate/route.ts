@@ -1,53 +1,37 @@
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-import { NextResponse } from "next/server";
-
-function generateCode(): string {
-  // Unambiguous uppercase alphanumeric characters
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 8; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
+import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 
 export async function POST() {
-  const { createSupabaseServerClient } = await import("@/lib/supabase");
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  try {
+    const { createSupabaseServerClient } = await import('@/lib/supabase');
+    const authClient = await createSupabaseServerClient();
+    const { data: { user: authUser }, error: authError } = await authClient.auth.getUser();
 
-  if (error || !user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    if (authError || !authUser) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: dbUser } = await supabase
+      .from('User')
+      .select('id, inviteCode')
+      .eq('supabaseId', authUser.id)
+      .single();
+
+    if (!dbUser) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ code: dbUser.inviteCode });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to get invite code';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const { prisma } = await import("@lion/database");
-
-  const dbUser = await prisma.user.findUnique({
-    where: { supabaseId: user.id },
-    select: { id: true },
-  });
-
-  if (!dbUser) {
-    return NextResponse.json({ error: "User profile not found" }, { status: 404 });
-  }
-
-  // Generate a unique code (retry on collision)
-  let code = generateCode();
-  let attempts = 0;
-  while (attempts < 5) {
-    const existing = await prisma.invite.findUnique({ where: { code } });
-    if (!existing) break;
-    code = generateCode();
-    attempts++;
-  }
-
-  const invite = await prisma.invite.create({
-    data: { code, invitedById: dbUser.id },
-  });
-
-  return NextResponse.json({ code: invite.code });
 }

@@ -30,7 +30,7 @@ export async function GET() {
     const supabase = await getSupabase()
     const { data: user, error } = await supabase
       .from('User')
-      .select('id, username, bio, avatarUrl, supabaseId, createdAt')
+      .select('id, username, bio, avatarUrl, supabaseId, createdAt, inviteCode, inviteCount, invitesUsed')
       .eq('supabaseId', authUser.id)
       .single()
 

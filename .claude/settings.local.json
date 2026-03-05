@@ -27,7 +27,8 @@
       "Bash(del /f /q \"tsconfig.tsbuildinfo\")",
       "Bash(npx turbo run build:*)",
       "Bash(npm run build:*)",
-      "Bash(next build)"
+      "Bash(next build)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:Free1045!20@db.xpvywayrfahzelxirczn.supabase.co:5432/postgres\" npx prisma db push --schema=packages/database/prisma/schema.prisma)"
     ]
   }
 }

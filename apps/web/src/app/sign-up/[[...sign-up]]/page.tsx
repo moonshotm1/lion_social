@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Loader2, Ticket } from "lucide-react";
+import { Eye, EyeOff, Loader2, Ticket, Check, X } from "lucide-react";
 import Link from "next/link";
 import { isClientDemoMode } from "@/lib/env-client";
 import { LionLogo } from "@/components/ui/lion-logo";
@@ -73,11 +73,17 @@ function DemoSignUp() {
 
 // ─── Real Supabase sign-up ────────────────────────────────────────────────────
 
+type InviteStatus = "idle" | "checking" | "valid" | "invalid";
+
 function SupabaseSignUpInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [inviteCode, setInviteCode] = useState("");
+  const [inviteStatus, setInviteStatus] = useState<InviteStatus>("idle");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [debouncedCode, setDebouncedCode] = useState("");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -91,6 +97,45 @@ function SupabaseSignUpInner() {
     if (code) setInviteCode(code.toUpperCase());
   }, [searchParams]);
 
+  // Debounce the invite code
+  useEffect(() => {
+    const code = inviteCode.trim().toUpperCase();
+    if (!code) {
+      setInviteStatus("idle");
+      setInviteError(null);
+      setDebouncedCode("");
+      return;
+    }
+    setInviteStatus("checking");
+    const timer = setTimeout(() => setDebouncedCode(code), 500);
+    return () => clearTimeout(timer);
+  }, [inviteCode]);
+
+  // Validate when debounced code changes
+  const checkInviteCode = useCallback(async (code: string) => {
+    if (!code) return;
+    setInviteStatus("checking");
+    setInviteError(null);
+    try {
+      const res = await fetch(`/api/invite/validate?code=${encodeURIComponent(code)}`);
+      const data = await res.json();
+      if (data.valid) {
+        setInviteStatus("valid");
+        setInviteError(null);
+      } else {
+        setInviteStatus("invalid");
+        setInviteError(data.error ?? "Invalid invite code.");
+      }
+    } catch {
+      setInviteStatus("invalid");
+      setInviteError("Could not validate invite code.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debouncedCode) checkInviteCode(debouncedCode);
+  }, [debouncedCode, checkInviteCode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -100,6 +145,12 @@ function SupabaseSignUpInner() {
 
     if (!code) {
       setError("An invite code is required to join Gains.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (inviteStatus !== "valid") {
+      setError(inviteError ?? "Please enter a valid invite code.");
       setIsLoading(false);
       return;
     }
@@ -116,16 +167,6 @@ function SupabaseSignUpInner() {
     }
 
     try {
-      const validateRes = await fetch(
-        `/api/invite/validate?code=${encodeURIComponent(code)}`
-      );
-      const validateData = await validateRes.json();
-      if (!validateData.valid) {
-        setError(validateData.error ?? "Invalid invite code.");
-        setIsLoading(false);
-        return;
-      }
-
       const { createSupabaseBrowserClient } = await import("@/lib/supabase");
       const supabase = createSupabaseBrowserClient();
 
@@ -205,6 +246,8 @@ function SupabaseSignUpInner() {
     );
   }
 
+  const canSubmit = inviteStatus === "valid" && !isLoading;
+
   return (
     <div className="w-full max-w-sm">
       <AuthHeader />
@@ -239,11 +282,34 @@ function SupabaseSignUpInner() {
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                 required
-                placeholder="XXXXXXXX"
-                maxLength={16}
-                className="w-full pl-9 pr-4 py-3 rounded-xl bg-lion-dark-3 border border-lion-gold/25 text-lion-gold placeholder:text-lion-gray-2 focus:outline-none focus:border-lion-gold/50 focus:ring-1 focus:ring-lion-gold/25 transition-all text-sm font-mono tracking-widest uppercase"
+                placeholder="YOURCODE"
+                maxLength={20}
+                className="w-full pl-9 pr-10 py-3 rounded-xl bg-lion-dark-3 border border-lion-gold/25 text-lion-gold placeholder:text-lion-gray-2 focus:outline-none focus:border-lion-gold/50 focus:ring-1 focus:ring-lion-gold/25 transition-all text-sm font-mono tracking-widest uppercase"
               />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                {inviteStatus === "checking" && (
+                  <Loader2 className="w-4 h-4 text-lion-gray-3 animate-spin" />
+                )}
+                {inviteStatus === "valid" && (
+                  <Check className="w-4 h-4 text-gains-green" />
+                )}
+                {inviteStatus === "invalid" && (
+                  <X className="w-4 h-4 text-red-400" />
+                )}
+              </div>
             </div>
+            {inviteStatus === "invalid" && inviteError && (
+              <p className="text-xs text-red-400 flex items-center gap-1.5 mt-1">
+                <X className="w-3 h-3 shrink-0" />
+                {inviteError}
+              </p>
+            )}
+            {inviteStatus === "valid" && (
+              <p className="text-xs text-gains-green flex items-center gap-1.5 mt-1">
+                <Check className="w-3 h-3 shrink-0" />
+                Valid invite code
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -327,7 +393,7 @@ function SupabaseSignUpInner() {
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={!canSubmit}
             className="w-full py-3 rounded-xl bg-gold-gradient text-lion-black font-bold text-sm tracking-wide hover:shadow-gold-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
           >
             {isLoading ? (

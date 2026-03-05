@@ -4,13 +4,14 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, Check, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, Camera, Check, AlertCircle, Loader2, Ticket, X } from "lucide-react";
 
 interface UserProfile {
   id: string;
   username: string;
   bio: string | null;
   avatarUrl: string | null;
+  inviteCode?: string | null;
 }
 
 export default function EditProfilePage() {
@@ -32,6 +33,14 @@ export default function EditProfilePage() {
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [isUsernameTaken, setIsUsernameTaken] = useState(false);
   const [isUsernameAvailable, setIsUsernameAvailable] = useState(false);
+
+  // ── Invite code state ──
+  const [currentInviteCode, setCurrentInviteCode] = useState<string | null>(null);
+  const [newInviteCode, setNewInviteCode] = useState("");
+  const [inviteCodeStatus, setInviteCodeStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
+  const [inviteCodeError, setInviteCodeError] = useState<string | null>(null);
+  const [isSavingCode, setIsSavingCode] = useState(false);
+  const [inviteCodeSuccess, setInviteCodeSuccess] = useState(false);
 
   // ── Submit state ──
   const [isUploading, setIsUploading] = useState(false);
@@ -56,6 +65,7 @@ export default function EditProfilePage() {
         setUsername(data.username);
         setBio(data.bio ?? "");
         setAvatarPreview(data.avatarUrl ?? null);
+        setCurrentInviteCode(data.inviteCode ?? null);
         setIsLoading(false);
       })
       .catch((err) => {
@@ -113,6 +123,67 @@ export default function EditProfilePage() {
   useEffect(() => {
     if (usernameToCheck) checkAvailability(usernameToCheck);
   }, [usernameToCheck, checkAvailability]);
+
+  // ── Invite code debounce & check ──
+  const inviteCodeFormatError = (() => {
+    if (!newInviteCode) return null;
+    const code = newInviteCode.toUpperCase();
+    if (code.length < 3) return "Must be at least 3 characters";
+    if (code.length > 20) return "Must be 20 characters or fewer";
+    if (!/^[A-Z0-9]+$/.test(code)) return "Only letters and numbers allowed";
+    return null;
+  })();
+
+  useEffect(() => {
+    const code = newInviteCode.trim().toUpperCase();
+    if (!code || inviteCodeFormatError || code === currentInviteCode) {
+      setInviteCodeStatus("idle");
+      setInviteCodeError(null);
+      return;
+    }
+    setInviteCodeStatus("checking");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/invite/check?code=${encodeURIComponent(code)}`);
+        const data = await res.json();
+        if (data.available) {
+          setInviteCodeStatus("available");
+          setInviteCodeError(null);
+        } else {
+          setInviteCodeStatus("taken");
+          setInviteCodeError(data.error ?? "Code is already taken");
+        }
+      } catch {
+        setInviteCodeStatus("idle");
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [newInviteCode, currentInviteCode, inviteCodeFormatError]);
+
+  const handleSaveInviteCode = async () => {
+    const code = newInviteCode.trim().toUpperCase();
+    if (!code || inviteCodeStatus !== "available") return;
+    setIsSavingCode(true);
+    setInviteCodeError(null);
+    try {
+      const res = await fetch("/api/invite/customize", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Failed to update invite code");
+      setCurrentInviteCode(code);
+      setNewInviteCode("");
+      setInviteCodeStatus("idle");
+      setInviteCodeSuccess(true);
+      setTimeout(() => setInviteCodeSuccess(false), 3000);
+    } catch (err) {
+      setInviteCodeError(err instanceof Error ? err.message : "Failed to update invite code");
+    } finally {
+      setIsSavingCode(false);
+    }
+  };
 
   // ── Avatar selection ──
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -337,6 +408,86 @@ export default function EditProfilePage() {
               {bio.length}/500
             </div>
           </div>
+        </div>
+
+        {/* Invite Code */}
+        <div className="rounded-xl border border-lion-gold/10 bg-lion-dark-2 p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <Ticket className="w-4 h-4 text-lion-gold" />
+            <h3 className="text-sm font-semibold text-lion-gold uppercase tracking-wider">
+              Invite Code
+            </h3>
+          </div>
+          {currentInviteCode && (
+            <p className="text-xs text-lion-gray-3">
+              Current code:{" "}
+              <span className="font-mono font-bold text-lion-gold tracking-widest">
+                {currentInviteCode}
+              </span>
+            </p>
+          )}
+          <div className="relative">
+            <input
+              type="text"
+              value={newInviteCode}
+              onChange={(e) => setNewInviteCode(e.target.value.toUpperCase())}
+              placeholder={currentInviteCode ?? "Choose a code"}
+              maxLength={20}
+              className="input-dark text-sm pr-9 font-mono tracking-widest uppercase"
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              {inviteCodeStatus === "checking" && (
+                <Loader2 className="w-4 h-4 text-lion-gray-3 animate-spin" />
+              )}
+              {inviteCodeStatus === "available" && (
+                <Check className="w-4 h-4 text-gains-green" />
+              )}
+              {inviteCodeStatus === "taken" && (
+                <X className="w-4 h-4 text-red-400" />
+              )}
+            </div>
+          </div>
+          {inviteCodeFormatError && newInviteCode && (
+            <p className="text-xs text-red-400 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" />
+              {inviteCodeFormatError}
+            </p>
+          )}
+          {!inviteCodeFormatError && inviteCodeStatus === "taken" && (
+            <p className="text-xs text-red-400 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" />
+              {inviteCodeError ?? "Code is already taken"}
+            </p>
+          )}
+          {!inviteCodeFormatError && inviteCodeStatus === "available" && (
+            <p className="text-xs text-gains-green flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5" />
+              Code is available
+            </p>
+          )}
+          <p className="text-xs text-lion-gray-2">
+            3–20 characters, letters and numbers only
+          </p>
+          {inviteCodeSuccess && (
+            <p className="text-xs text-gains-green flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5" />
+              Invite code updated!
+            </p>
+          )}
+          {inviteCodeError && inviteCodeStatus === "idle" && (
+            <p className="text-xs text-red-400 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" />
+              {inviteCodeError}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={handleSaveInviteCode}
+            disabled={inviteCodeStatus !== "available" || isSavingCode}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed btn-gold"
+          >
+            {isSavingCode ? "Saving..." : "Save Invite Code"}
+          </button>
         </div>
       </div>
 

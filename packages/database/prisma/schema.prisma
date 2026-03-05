@@ -9,13 +9,16 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  supabaseId String  @unique
-  username  String   @unique
-  bio       String?
-  avatarUrl String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  supabaseId  String   @unique
+  username    String   @unique
+  bio         String?
+  avatarUrl   String?
+  inviteCode  String?  @unique
+  inviteCount Int      @default(5)
+  invitesUsed Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   posts         Post[]
   likes         Like[]
@@ -121,7 +124,7 @@ enum NotificationType {
 
 model Invite {
   id          String    @id @default(cuid())
-  code        String    @unique
+  code        String
   invitedById String
   invitedBy   User      @relation("SentInvites", fields: [invitedById], references: [id], onDelete: Cascade)
   usedById    String?   @unique
