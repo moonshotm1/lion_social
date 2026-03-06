@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -74,7 +74,7 @@ function DemoSignIn() {
 
 // ─── Real Supabase sign-in ────────────────────────────────────────────────────
 
-function SupabaseSignIn() {
+function SupabaseSignInInner() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect_to") || "/";
 
@@ -113,7 +113,12 @@ function SupabaseSignIn() {
       });
 
       if (authError) {
-        setError(authError.message);
+        const msg = authError.message.toLowerCase();
+        if (msg.includes("invalid login") || msg.includes("invalid credentials") || msg.includes("wrong password")) {
+          setError("Incorrect password. Please try again.");
+        } else {
+          setError(authError.message);
+        }
         setIsLoading(false);
         return;
       }
@@ -136,10 +141,10 @@ function SupabaseSignIn() {
             className="text-xl font-bold text-lion-white"
             style={{ fontFamily: "var(--font-playfair), Georgia, serif" }}
           >
-            Welcome back
+            Sign in to the Pack
           </h2>
           <p className="text-sm text-lion-gray-3 mt-1.5">
-            Sign in to your account
+            Use your email or username
           </p>
         </div>
 
@@ -234,6 +239,14 @@ function SupabaseSignIn() {
         </p>
       </div>
     </div>
+  );
+}
+
+function SupabaseSignIn() {
+  return (
+    <Suspense fallback={null}>
+      <SupabaseSignInInner />
+    </Suspense>
   );
 }
 
