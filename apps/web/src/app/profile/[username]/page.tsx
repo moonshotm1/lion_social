@@ -33,6 +33,7 @@ export default function ProfilePage({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
 
   // Resolve the "me" alias to the current user's real username
   const { user: currentUser, isLoading: currentUserLoading } = useCurrentUser();
@@ -98,6 +99,33 @@ export default function ProfilePage({
       .then((data) => { setInviteList(data.invites ?? []); })
       .catch(() => {});
   }, [isOwnProfile]);
+
+  // Fetch initial follow state when profile loads (not own profile)
+  useEffect(() => {
+    if (isOwnProfile || !profileUser?.id) return;
+    fetch(`/api/user/follow?targetUserId=${encodeURIComponent(profileUser.id)}`)
+      .then((r) => r.json())
+      .then((data) => { setIsFollowing(!!data.following); })
+      .catch(() => {});
+  }, [isOwnProfile, profileUser?.id]);
+
+  const handleFollow = async () => {
+    if (!profileUser?.id || followLoading) return;
+    setFollowLoading(true);
+    try {
+      const res = await fetch("/api/user/follow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId: profileUser.id }),
+      });
+      const data = await res.json();
+      setIsFollowing(!!data.following);
+    } catch {
+      // silently fail
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   const handleCopyCode = () => {
     if (!inviteCode) return;
@@ -231,9 +259,10 @@ export default function ProfilePage({
               </>
             ) : (
               <button
-                onClick={() => setIsFollowing(!isFollowing)}
+                onClick={handleFollow}
+                disabled={followLoading}
                 className={`
-                  px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300
+                  px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300 disabled:opacity-60
                   ${
                     isFollowing
                       ? "bg-lion-dark-3 text-lion-white border border-lion-gold/20 hover:border-red-400/30 hover:text-red-400"

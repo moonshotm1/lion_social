@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { useState, useEffect, useCallback } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockNotifications } from "@/lib/mock-data";
 import type { MockNotification } from "@/lib/types";
@@ -32,57 +31,67 @@ function useNotificationsDemo(): UseNotificationsResult {
 }
 
 function useNotificationsReal(): UseNotificationsResult {
-  const query = trpc.notification.list.useQuery({});
-  const markReadMutation = trpc.notification.markRead.useMutation();
-  const markAllReadMutation = trpc.notification.markAllRead.useMutation();
-  const utils = trpc.useUtils();
+  const [notifications, setNotifications] = useState<MockNotification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const notifications: MockNotification[] = (
-    query.data?.notifications ?? []
-  ).map((n: any) => ({
-    id: n.id,
-    type: n.type as MockNotification["type"],
-    user: {
-      id: "",
-      username: "",
-      displayName: "",
-      avatar: "",
-      bio: "",
-      followers: 0,
-      following: 0,
-      posts: 0,
-      isVerified: false,
-    },
-    message: `${n.type} notification`,
-    createdAt:
-      n.createdAt instanceof Date ? n.createdAt.toISOString() : n.createdAt,
-    read: n.read,
-    postId: n.referenceId,
-  }));
-
-  return {
-    notifications,
-    isLoading: query.isLoading,
-    markRead: (id: string) => {
-      markReadMutation.mutate(
-        { id },
-        {
-          onSuccess: () => {
-            utils.notification.list.invalidate();
-            utils.notification.unreadCount.invalidate();
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications");
+      if (!res.ok) return;
+      const data = await res.json();
+      const items: MockNotification[] = (data.notifications ?? []).map(
+        (n: any) => ({
+          id: n.id,
+          type: n.type as MockNotification["type"],
+          user: {
+            id: n.actor?.id ?? "",
+            username: n.actor?.username ?? "unknown",
+            displayName: n.actor?.username ?? "unknown",
+            avatar: n.actor?.avatarUrl ?? "",
+            bio: "",
+            followers: 0,
+            following: 0,
+            posts: 0,
+            isVerified: false,
           },
-        }
+          message: n.message ?? `${n.type} notification`,
+          createdAt: n.createdAt,
+          read: n.read,
+          postId: n.postId ?? undefined,
+        })
       );
+      setNotifications(items);
+    } catch {
+      // silently fail
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const markRead = useCallback(
+    (id: string) => {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      );
+      fetch("/api/notifications/read", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      }).catch(() => {});
     },
-    markAllRead: () => {
-      markAllReadMutation.mutate(undefined, {
-        onSuccess: () => {
-          utils.notification.list.invalidate();
-          utils.notification.unreadCount.invalidate();
-        },
-      });
-    },
-  };
+    []
+  );
+
+  const markAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    fetch("/api/notifications/read-all", { method: "PATCH" }).catch(() => {});
+  }, []);
+
+  return { notifications, isLoading, markRead, markAllRead };
 }
 
 export const useNotifications = isClientDemoMode

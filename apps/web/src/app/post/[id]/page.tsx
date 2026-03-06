@@ -1,14 +1,13 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, BadgeCheck, Send } from "lucide-react";
 import { PostCard } from "@/components/feed/post-card";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockPosts } from "@/lib/mock-data";
-import { trpc } from "@/lib/trpc";
 import { transformPost } from "@/lib/transforms";
 import { getTimeAgo } from "@/lib/types";
 import type { MockPost } from "@/lib/types";
@@ -236,39 +235,56 @@ function PostDetailDemo({ id }: { id: string }) {
 // ─── Real mode ────────────────────────────────────────────────────────────
 
 function PostDetailReal({ id }: { id: string }) {
-  const utils = trpc.useUtils();
-  const query = trpc.post.byId.useQuery({ id }, { retry: false });
-  const recordView = trpc.post.recordView.useMutation({
-    onSuccess: () => {
-      // Refetch so the view count shown on screen reflects the new view
-      utils.post.byId.invalidate({ id });
-    },
-  });
+  const [postData, setPostData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCommenting, setIsCommenting] = useState(false);
 
-  // Record a view once we know the post exists (runs once per mount per post)
-  useEffect(() => {
-    if (query.data?.id) {
-      recordView.mutate({ postId: query.data.id });
+  const fetchPost = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/post/${id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setPostData(data);
+    } catch {
+      // silently fail
+    } finally {
+      setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.data?.id]);
+  }, [id]);
 
-  const addComment = trpc.comment.create.useMutation({
-    onSuccess: () => {
-      utils.post.byId.invalidate({ id });
+  useEffect(() => {
+    fetchPost();
+  }, [fetchPost]);
+
+  const handleComment = useCallback(
+    async (content: string) => {
+      setIsCommenting(true);
+      try {
+        await fetch(`/api/post/${id}/comment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        });
+        await fetchPost();
+      } catch {
+        // silently fail
+      } finally {
+        setIsCommenting(false);
+      }
     },
-  });
+    [id, fetchPost]
+  );
 
-  const post = query.data ? transformPost(query.data) : null;
-  const comments = (query.data?.comments ?? []) as PostComment[];
+  const post = postData ? transformPost(postData) : null;
+  const comments = (postData?.comments ?? []) as PostComment[];
 
   return (
     <PostDetailShell
       post={post}
       comments={comments}
-      isLoading={query.isLoading}
-      onComment={(content) => addComment.mutate({ postId: id, content })}
-      isCommenting={addComment.isPending}
+      isLoading={isLoading}
+      onComment={handleComment}
+      isCommenting={isCommenting}
     />
   );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { trpc } from "@/lib/trpc";
 import { isClientDemoMode } from "@/lib/env-client";
 
 interface UseSaveResult {
@@ -18,18 +17,11 @@ function useSaveDemo(): UseSaveResult {
 }
 
 function useSaveReal(): UseSaveResult {
-  const utils = trpc.useUtils();
-  const mutation = trpc.save.toggle.useMutation({
-    onSuccess: () => {
-      utils.post.feed.invalidate();
-      utils.post.byUser.invalidate();
-      utils.save.byUser.invalidate();
-    },
-  });
-
   return {
-    toggleSave: (postId: string) => mutation.mutate({ postId }),
-    isLoading: mutation.isPending,
+    toggleSave: (postId: string) => {
+      fetch(`/api/post/${postId}/save`, { method: "POST" }).catch(() => {});
+    },
+    isLoading: false,
   };
 }
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { trpc } from "@/lib/trpc";
 import { isClientDemoMode } from "@/lib/env-client";
 
 interface UseLikeResult {
@@ -18,19 +17,11 @@ function useLikeDemo(): UseLikeResult {
 }
 
 function useLikeReal(): UseLikeResult {
-  const utils = trpc.useUtils();
-  const mutation = trpc.like.toggle.useMutation({
-    onSuccess: () => {
-      utils.post.feed.invalidate();
-      utils.post.byUser.invalidate();
-      utils.post.byId.invalidate();
-      utils.like.byUser.invalidate();
-    },
-  });
-
   return {
-    toggleLike: (postId: string) => mutation.mutate({ postId }),
-    isLoading: mutation.isPending,
+    toggleLike: (postId: string) => {
+      fetch(`/api/post/${postId}/like`, { method: "POST" }).catch(() => {});
+    },
+    isLoading: false,
   };
 }
 
