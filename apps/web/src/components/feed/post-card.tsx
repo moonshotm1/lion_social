@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,11 +18,180 @@ import {
   Quote,
   BookOpen,
   UtensilsCrossed,
+  Send,
 } from "lucide-react";
 import type { MockPost, WorkoutData, MealData, QuoteData, StoryData } from "@/lib/types";
 import { getTimeAgo, formatCount, postTypeConfig } from "@/lib/types";
 import { useLike } from "@/hooks/use-like";
 import { useSave } from "@/hooks/use-save";
+import { isClientDemoMode } from "@/lib/env-client";
+
+// ─── Comment types ──────────────────────────────────────────────────────────
+
+interface InlineComment {
+  id: string;
+  content: string;
+  createdAt: string;
+  user: { id: string; username: string; avatarUrl: string | null };
+}
+
+// ─── Inline comment section ─────────────────────────────────────────────────
+
+function InlineComments({
+  postId,
+  initialCount,
+  onCountChange,
+}: {
+  postId: string;
+  initialCount: number;
+  onCountChange: (n: number) => void;
+}) {
+  const [comments, setComments] = useState<InlineComment[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const load = useCallback(async () => {
+    if (loaded || isClientDemoMode) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/post/${postId}/comment`);
+      if (res.ok) {
+        const data = await res.json();
+        setComments(data.comments ?? []);
+      }
+    } finally {
+      setLoaded(true);
+      setLoading(false);
+    }
+  }, [postId, loaded]);
+
+  // Load on first render of this component (called when expanded)
+  if (!loaded && !loading) {
+    load();
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = text.trim();
+    if (!trimmed || submitting || isClientDemoMode) return;
+    setSubmitting(true);
+    const optimistic: InlineComment = {
+      id: `opt-${Date.now()}`,
+      content: trimmed,
+      createdAt: new Date().toISOString(),
+      user: { id: "", username: "you", avatarUrl: null },
+    };
+    setComments((prev) => [...prev, optimistic]);
+    onCountChange(initialCount + 1);
+    setText("");
+    try {
+      const res = await fetch(`/api/post/${postId}/comment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: trimmed }),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        // Replace optimistic with real comment (no user info returned, reload)
+        const reload = await fetch(`/api/post/${postId}/comment`);
+        if (reload.ok) {
+          const data = await reload.json();
+          setComments(data.comments ?? []);
+        } else {
+          setComments((prev) =>
+            prev.map((c) => (c.id === optimistic.id ? { ...optimistic, id: saved.id } : c))
+          );
+        }
+      } else {
+        // Revert on error
+        setComments((prev) => prev.filter((c) => c.id !== optimistic.id));
+        onCountChange(initialCount);
+      }
+    } catch {
+      setComments((prev) => prev.filter((c) => c.id !== optimistic.id));
+      onCountChange(initialCount);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as unknown as React.FormEvent);
+    }
+  };
+
+  return (
+    <div className="border-t border-lion-gold/8 bg-lion-dark-2/30">
+      {/* Comment list */}
+      {loading ? (
+        <div className="flex justify-center py-4">
+          <div className="w-5 h-5 rounded-full border-2 border-lion-gold/30 border-t-lion-gold animate-spin" />
+        </div>
+      ) : comments.length === 0 ? (
+        <p className="text-xs text-lion-gray-2 text-center py-4">No comments yet. Be the first!</p>
+      ) : (
+        <div className="divide-y divide-lion-gold/5 max-h-64 overflow-y-auto">
+          {comments.map((c) => {
+            const avatar =
+              c.user.avatarUrl ??
+              `https://api.dicebear.com/9.x/avataaars/svg?seed=${c.user.username}`;
+            return (
+              <div key={c.id} className="flex gap-2.5 px-4 py-3">
+                <Link href={`/profile/${c.user.username}`} className="shrink-0">
+                  <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-lion-gold/20">
+                    <Image src={avatar} alt={c.user.username} width={28} height={28} className="w-full h-full object-cover" />
+                  </div>
+                </Link>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-1.5 mb-0.5">
+                    <Link
+                      href={`/profile/${c.user.username}`}
+                      className="text-xs font-semibold text-lion-white hover:text-lion-gold transition-colors"
+                    >
+                      {c.user.username}
+                    </Link>
+                    <span className="text-[10px] text-lion-gray-2" suppressHydrationWarning>
+                      {getTimeAgo(c.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-lion-gray-4 leading-relaxed">{c.content}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Input */}
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-end gap-2 px-4 py-3 border-t border-lion-gold/8"
+      >
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Add a comment… (Enter to send)"
+          rows={1}
+          className="flex-1 resize-none bg-lion-dark-3 border border-lion-gold/10 rounded-xl px-3 py-2 text-sm text-lion-white placeholder:text-lion-gray-3 focus:outline-none focus:border-lion-gold/30 focus:ring-1 focus:ring-lion-gold/20 transition-colors max-h-24 overflow-y-auto"
+        />
+        <button
+          type="submit"
+          disabled={!text.trim() || submitting || isClientDemoMode}
+          className="p-2 rounded-xl bg-gold-gradient text-lion-black disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-gold-sm flex-shrink-0"
+        >
+          <Send className="w-3.5 h-3.5" />
+        </button>
+      </form>
+    </div>
+  );
+}
 
 // ─── Helper: calculate total volume ────────────────────────────────────────
 
@@ -262,6 +431,8 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const [favCount, setFavCount] = useState(post.favorites ?? 0);
   const [isCopied, setIsCopied] = useState(false);
   const [isAnimatingLike, setIsAnimatingLike] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [commentCount, setCommentCount] = useState(post.comments);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCountRef = useRef(0);
   const { toggleLike } = useLike();
@@ -470,10 +641,23 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
           </button>
 
           {/* Comment */}
-          <button className="flex items-center gap-1.5 group">
-            <MessageCircle className="w-5 h-5 text-lion-gray-3 group-hover:text-lion-white transition-colors duration-200" />
-            <span className="text-xs font-medium text-lion-gray-3 group-hover:text-lion-white transition-colors duration-200">
-              {formatCount(post.comments)}
+          <button
+            onClick={() => setShowComments((v) => !v)}
+            className="flex items-center gap-1.5 group"
+          >
+            <MessageCircle
+              className={`w-5 h-5 transition-colors duration-200 ${
+                showComments
+                  ? "text-lion-white"
+                  : "text-lion-gray-3 group-hover:text-lion-white"
+              }`}
+            />
+            <span
+              className={`text-xs font-medium transition-colors duration-200 ${
+                showComments ? "text-lion-white" : "text-lion-gray-3 group-hover:text-lion-white"
+              }`}
+            >
+              {formatCount(commentCount)}
             </span>
           </button>
 
@@ -522,6 +706,15 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
           </button>
         </div>
       </div>
+
+      {/* ── Inline Comments ──────────────────────────────────────────────── */}
+      {showComments && !expanded && (
+        <InlineComments
+          postId={post.id}
+          initialCount={commentCount}
+          onCountChange={setCommentCount}
+        />
+      )}
     </article>
   );
 }
