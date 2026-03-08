@@ -20,13 +20,16 @@ export function transformPost(apiPost: any): MockPost {
     comments: apiPost.commentsCount ?? apiPost._count?.comments ?? 0,
     shares: 0,
     views: apiPost.viewCount ?? 0,
-    favorites: apiPost._count?.saves ?? 0,
+    favorites: apiPost.savesCount ?? apiPost._count?.saves ?? 0,
     isLiked:
       typeof apiPost.isLiked === "boolean"
         ? apiPost.isLiked
         : Array.isArray(apiPost.likes) && apiPost.likes.length > 0,
     isFavorited: false,
-    isBookmarked: Array.isArray(apiPost.saves) && apiPost.saves.length > 0,
+    isBookmarked:
+      typeof apiPost.isBookmarked === "boolean"
+        ? apiPost.isBookmarked
+        : Array.isArray(apiPost.saves) && apiPost.saves.length > 0,
     tags: Array.isArray(metadata.tags) ? metadata.tags : [],
     workoutData:
       apiPost.type === "workout"

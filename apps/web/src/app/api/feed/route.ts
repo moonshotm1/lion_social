@@ -76,8 +76,8 @@ export async function GET(req: NextRequest) {
     const postIds = (posts as any[]).map((p) => p.id);
     const userIds = Array.from(new Set((posts as any[]).map((p) => p.userId)));
 
-    // Batch-fetch users, likes, comments
-    const [{ data: users }, { data: likes }, { data: comments }] =
+    // Batch-fetch users, likes, comments, saves
+    const [{ data: users }, { data: likes }, { data: comments }, { data: saves }] =
       await Promise.all([
         supabase
           .from("User")
@@ -91,10 +91,11 @@ export async function GET(req: NextRequest) {
           .from("Comment")
           .select("postId")
           .in("postId", postIds),
+        supabase
+          .from("Save")
+          .select("postId, userId")
+          .in("postId", postIds),
       ]);
-
-    console.log("[feed] userIds to fetch:", userIds);
-    console.log("[feed] users returned:", users?.length, JSON.stringify(users?.[0]));
 
     const userMap: Record<string, any> = Object.fromEntries(
       (users ?? []).map((u: any) => [u.id, u])
@@ -112,6 +113,13 @@ export async function GET(req: NextRequest) {
       commentCountMap[c.postId] = (commentCountMap[c.postId] ?? 0) + 1;
     });
 
+    const saveCountMap: Record<string, number> = {};
+    const userSavedSet = new Set<string>();
+    (saves ?? []).forEach((s: any) => {
+      saveCountMap[s.postId] = (saveCountMap[s.postId] ?? 0) + 1;
+      if (currentUserId && s.userId === currentUserId) userSavedSet.add(s.postId);
+    });
+
     const result = (posts as any[]).map((p) => ({
       id: p.id,
       caption: p.caption,
@@ -127,10 +135,10 @@ export async function GET(req: NextRequest) {
       },
       likesCount: likeCountMap[p.id] ?? 0,
       commentsCount: commentCountMap[p.id] ?? 0,
+      savesCount: saveCountMap[p.id] ?? 0,
       isLiked: userLikedSet.has(p.id),
+      isBookmarked: userSavedSet.has(p.id),
     }));
-
-    console.log(`[feed] tab=${tab} returning ${result.length} posts`);
     return NextResponse.json({ posts: result });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to fetch feed";
