@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { trpc } from "@/lib/trpc";
+import { useState, useEffect, useCallback } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
@@ -12,12 +11,25 @@ function useUnreadCountDemo() {
 
 function useUnreadCountReal() {
   const { user, isSignedIn } = useCurrentUser();
-  const utils = trpc.useUtils();
+  const [count, setCount] = useState(0);
 
-  const { data } = trpc.notification.unreadCount.useQuery(undefined, {
-    enabled: isSignedIn,
-    refetchInterval: 30000, // 30-second polling fallback
-  });
+  const fetchCount = useCallback(async () => {
+    if (!isSignedIn) return;
+    try {
+      const res = await fetch("/api/notifications/unread-count");
+      if (!res.ok) return;
+      const data = await res.json();
+      setCount(data.count ?? 0);
+    } catch {
+      // silently fail
+    }
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000);
+    return () => clearInterval(interval);
+  }, [fetchCount]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -34,7 +46,7 @@ function useUnreadCountReal() {
           filter: `userId=eq.${user.id}`,
         },
         () => {
-          utils.notification.unreadCount.invalidate();
+          fetchCount();
         }
       )
       .subscribe();
@@ -42,9 +54,9 @@ function useUnreadCountReal() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, utils]);
+  }, [user?.id, fetchCount]);
 
-  return { count: data?.count ?? 0 };
+  return { count };
 }
 
 export const useUnreadCount = isClientDemoMode

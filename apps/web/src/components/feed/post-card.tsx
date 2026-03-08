@@ -113,8 +113,9 @@ function WorkoutContent({ data }: { data: WorkoutData }) {
 // ─── Meal Content ──────────────────────────────────────────────────────────
 
 function MealContent({ data }: { data: MealData }) {
-  const mealTypeLabel =
-    data.mealType.charAt(0).toUpperCase() + data.mealType.slice(1);
+  const mealTypeLabel = data.mealType
+    ? data.mealType.charAt(0).toUpperCase() + data.mealType.slice(1)
+    : "Meal";
 
   return (
     <div className="px-4 pt-3 pb-2 space-y-3">
@@ -207,10 +208,11 @@ function QuoteContent({ data }: { data: QuoteData }) {
 
 function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean }) {
   const previewLength = 200;
-  const isLong = data.content.length > previewLength;
+  const content = data.content ?? "";
+  const isLong = content.length > previewLength;
   const preview = !expanded && isLong
-    ? data.content.substring(0, previewLength).trim() + "..."
-    : data.content;
+    ? content.substring(0, previewLength).trim() + "..."
+    : content;
 
   return (
     <div className="px-4 pt-3 pb-2 space-y-3">
@@ -222,7 +224,7 @@ function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean 
 
       {/* Content preview */}
       <p className="text-sm text-lion-gray-4 leading-relaxed whitespace-pre-line">
-        {preview}
+        {preview || <span className="italic text-lion-gray-2">No content</span>}
         {!expanded && isLong && (
           <span className="ml-1 text-lion-gold font-medium">Read more</span>
         )}
@@ -421,7 +423,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
         </p>
 
         {/* Tags */}
-        {post.tags.length > 0 && (
+        {(post.tags ?? []).length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {post.tags.map((tag) => (
               <span

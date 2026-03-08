@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     // Fetch posts
     let postQuery = supabase
       .from("Post")
-      .select("id, caption, imageUrl, type, createdAt, viewCount, userId")
+      .select("id, caption, imageUrl, type, createdAt, viewCount, userId, metadata")
       .order("createdAt", { ascending: false })
       .limit(20);
 
@@ -116,6 +116,7 @@ export async function GET(req: NextRequest) {
       type: p.type,
       createdAt: p.createdAt,
       viewCount: p.viewCount ?? 0,
+      metadata: p.metadata ?? {},
       user: userMap[p.userId] ?? {
         id: p.userId,
         username: "unknown",

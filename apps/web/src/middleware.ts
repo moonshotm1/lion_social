@@ -63,6 +63,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/api/upload") ||
       pathname.startsWith("/api/profile") ||
       pathname.startsWith("/api/post/") ||
+      pathname.startsWith("/api/feed") ||
       pathname.startsWith("/api/user/") ||
       pathname.startsWith("/api/notifications") ||
       pathname.startsWith("/auth/callback");
