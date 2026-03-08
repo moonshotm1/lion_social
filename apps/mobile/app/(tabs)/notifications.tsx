@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import {
   View,
   Text,
@@ -6,15 +6,13 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "../../src/constants/colors";
-import {
-  MOCK_NOTIFICATIONS,
-  type MockNotification,
-  getRelativeTime,
-} from "../../src/constants/mock-data";
+import { getRelativeTime } from "../../src/constants/mock-data";
 import Avatar from "../../src/components/Avatar";
+import { useNotifications, type RealNotification } from "../../src/hooks/use-notifications";
 
 const NOTIFICATION_ICONS: Record<string, string> = {
   follow: "👤",
@@ -23,32 +21,21 @@ const NOTIFICATION_ICONS: Record<string, string> = {
 };
 
 export default function NotificationsScreen() {
-  const [refreshing, setRefreshing] = useState(false);
-  const [notifications, setNotifications] =
-    useState<MockNotification[]>(MOCK_NOTIFICATIONS);
-
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const { notifications, unreadCount, loading, markAllRead, markRead } =
+    useNotifications();
 
   const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setNotifications([...MOCK_NOTIFICATIONS]);
-      setRefreshing(false);
-    }, 1200);
+    // Realtime subscription handles live updates; pull-to-refresh is a no-op here
+    // until a manual refetch method is exposed from the hook.
   }, []);
 
-  const markAllRead = () => {
-    setNotifications((prev) =>
-      prev.map((n) => ({ ...n, isRead: true }))
-    );
-  };
-
-  const renderNotification = ({ item }: { item: MockNotification }) => (
+  const renderNotification = ({ item }: { item: RealNotification }) => (
     <Pressable
       style={[
         styles.notificationRow,
         !item.isRead && styles.notificationUnread,
       ]}
+      onPress={() => markRead(item.id)}
     >
       {/* Unread Indicator */}
       {!item.isRead && <View style={styles.unreadDot} />}
@@ -56,8 +43,8 @@ export default function NotificationsScreen() {
       {/* Avatar */}
       <View style={styles.avatarContainer}>
         <Avatar
-          uri={item.user.avatarUrl}
-          name={item.user.displayName}
+          uri={item.actor.avatarUrl}
+          name={item.actor.username}
           size={48}
         />
         <View style={styles.notifIconBadge}>
@@ -70,7 +57,7 @@ export default function NotificationsScreen() {
       {/* Content */}
       <View style={styles.notifContent}>
         <Text style={styles.notifMessage}>
-          <Text style={styles.notifUsername}>{item.user.username}</Text>
+          <Text style={styles.notifUsername}>{item.actor.username}</Text>
           {" "}
           {item.message}
         </Text>
@@ -79,7 +66,7 @@ export default function NotificationsScreen() {
         </Text>
       </View>
 
-      {/* Action (optional) */}
+      {/* Follow-back button */}
       {item.type === "follow" && (
         <Pressable style={styles.followBackButton}>
           <Text style={styles.followBackText}>Follow</Text>
@@ -106,60 +93,58 @@ export default function NotificationsScreen() {
     </View>
   );
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>🔔</Text>
-      <Text style={styles.emptyTitle}>No notifications yet</Text>
-      <Text style={styles.emptySubtitle}>
-        When someone interacts with your posts, you'll see it here
-      </Text>
-    </View>
-  );
+  const renderEmpty = () => {
+    if (loading) {
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      );
+    }
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyIcon}>🔔</Text>
+        <Text style={styles.emptyTitle}>No notifications yet</Text>
+        <Text style={styles.emptySubtitle}>
+          When someone interacts with your posts, you'll see it here
+        </Text>
+      </View>
+    );
+  };
 
-  const renderSectionHeader = (title: string) => (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionHeaderText}>{title}</Text>
-    </View>
-  );
-
-  // Split into new and earlier
   const newNotifications = notifications.filter((n) => !n.isRead);
   const earlierNotifications = notifications.filter((n) => n.isRead);
+
+  type ListItem =
+    | { id: string; type: "section"; title: string }
+    | (RealNotification & { type: "notification" });
+
+  const listData: ListItem[] = [
+    ...(newNotifications.length > 0
+      ? [{ id: "header-new", type: "section" as const, title: "New" }]
+      : []),
+    ...newNotifications.map((n) => ({ ...n, type: "notification" as const })),
+    ...(earlierNotifications.length > 0
+      ? [{ id: "header-earlier", type: "section" as const, title: "Earlier" }]
+      : []),
+    ...earlierNotifications.map((n) => ({ ...n, type: "notification" as const })),
+  ];
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <FlatList
-        data={[
-          ...(newNotifications.length > 0
-            ? [{ id: "header-new", type: "section" as const, title: "New" }]
-            : []),
-          ...newNotifications.map((n) => ({
-            ...n,
-            type: "notification" as const,
-          })),
-          ...(earlierNotifications.length > 0
-            ? [
-                {
-                  id: "header-earlier",
-                  type: "section" as const,
-                  title: "Earlier",
-                },
-              ]
-            : []),
-          ...earlierNotifications.map((n) => ({
-            ...n,
-            type: "notification" as const,
-          })),
-        ]}
+        data={listData}
         renderItem={({ item }) => {
           if (item.type === "section") {
-            return renderSectionHeader(
-              (item as { title: string }).title
+            return (
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionHeaderText}>
+                  {(item as { title: string }).title}
+                </Text>
+              </View>
             );
           }
-          return renderNotification({
-            item: item as MockNotification,
-          });
+          return renderNotification({ item: item as RealNotification });
         }}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
@@ -168,7 +153,7 @@ export default function NotificationsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={false}
             onRefresh={onRefresh}
             tintColor={Colors.gold}
             colors={[Colors.gold]}
@@ -188,8 +173,6 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 100,
   },
-
-  // Header
   header: {
     paddingHorizontal: 20,
     paddingTop: 8,
@@ -226,8 +209,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.gold,
   },
-
-  // Section Headers
   sectionHeader: {
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -242,8 +223,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-
-  // Notification Row
   notificationRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -304,8 +283,6 @@ const styles = StyleSheet.create({
     color: Colors.grayDark,
     marginTop: 3,
   },
-
-  // Follow Back Button
   followBackButton: {
     backgroundColor: Colors.gold,
     paddingHorizontal: 18,
@@ -317,8 +294,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.black,
   },
-
-  // Empty
   emptyContainer: {
     flex: 1,
     alignItems: "center",

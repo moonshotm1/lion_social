@@ -16,12 +16,15 @@ export function transformPost(apiPost: any): MockPost {
         ? apiPost.createdAt.toISOString()
         : apiPost.createdAt,
     author: transformUser(apiPost.user),
-    likes: apiPost._count?.likes ?? 0,
-    comments: apiPost._count?.comments ?? 0,
+    likes: apiPost.likesCount ?? apiPost._count?.likes ?? 0,
+    comments: apiPost.commentsCount ?? apiPost._count?.comments ?? 0,
     shares: 0,
     views: apiPost.viewCount ?? 0,
     favorites: apiPost._count?.saves ?? 0,
-    isLiked: Array.isArray(apiPost.likes) && apiPost.likes.length > 0,
+    isLiked:
+      typeof apiPost.isLiked === "boolean"
+        ? apiPost.isLiked
+        : Array.isArray(apiPost.likes) && apiPost.likes.length > 0,
     isFavorited: false,
     isBookmarked: Array.isArray(apiPost.saves) && apiPost.saves.length > 0,
     tags: Array.isArray(metadata.tags) ? metadata.tags : [],
@@ -65,7 +68,7 @@ export function transformUser(apiUser: any): MockUser {
   return {
     id: apiUser.id,
     username: apiUser.username,
-    displayName: apiUser.username,
+    displayName: apiUser.displayName ?? apiUser.username,
     avatar:
       apiUser.avatarUrl ??
       `https://api.dicebear.com/9.x/avataaars/svg?seed=${apiUser.username}`,
@@ -73,6 +76,6 @@ export function transformUser(apiUser: any): MockUser {
     followers: apiUser._count?.followers ?? 0,
     following: apiUser._count?.following ?? 0,
     posts: apiUser._count?.posts ?? 0,
-    isVerified: false,
+    isVerified: apiUser.isVerified ?? false,
   };
 }

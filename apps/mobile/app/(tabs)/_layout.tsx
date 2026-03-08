@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { View, Text, StyleSheet, Platform } from "react-native";
 import Colors from "../../src/constants/colors";
+import { useNotifications } from "../../src/hooks/use-notifications";
 
 /**
  * Custom tab bar icon with label
@@ -10,11 +11,13 @@ function TabIcon({
   label,
   focused,
   isCreate,
+  badge,
 }: {
   icon: string;
   label: string;
   focused: boolean;
   isCreate?: boolean;
+  badge?: number;
 }) {
   if (isCreate) {
     return (
@@ -33,14 +36,21 @@ function TabIcon({
 
   return (
     <View style={styles.tabIconContainer}>
-      <Text
-        style={[
-          styles.tabIcon,
-          { color: focused ? Colors.gold : Colors.grayDark },
-        ]}
-      >
-        {icon}
-      </Text>
+      <View style={styles.iconWrapper}>
+        <Text
+          style={[
+            styles.tabIcon,
+            { color: focused ? Colors.gold : Colors.grayDark },
+          ]}
+        >
+          {icon}
+        </Text>
+        {badge != null && badge > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{badge > 99 ? "99+" : badge}</Text>
+          </View>
+        )}
+      </View>
       <Text
         style={[
           styles.tabLabel,
@@ -56,6 +66,8 @@ function TabIcon({
 }
 
 export default function TabLayout() {
+  const { unreadCount } = useNotifications();
+
   return (
     <Tabs
       screenOptions={{
@@ -98,7 +110,7 @@ export default function TabLayout() {
         options={{
           title: "Alerts",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="🔔" label="Alerts" focused={focused} />
+            <TabIcon icon="🔔" label="Alerts" focused={focused} badge={unreadCount} />
           ),
         }}
       />
@@ -134,6 +146,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 2,
     minWidth: 48,
+  },
+  iconWrapper: {
+    position: "relative",
+  },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: Colors.dark900,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    lineHeight: 12,
   },
   tabIcon: {
     fontSize: 20,

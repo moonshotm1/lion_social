@@ -85,7 +85,7 @@ export const commentRouter = router({
       });
       if (post && post.userId !== ctx.userId) {
         await ctx.prisma.notification.create({
-          data: { userId: post.userId, type: "comment", referenceId: comment.id },
+          data: { userId: post.userId, type: "comment", referenceId: `${ctx.userId}:${input.postId}` },
         });
       }
 

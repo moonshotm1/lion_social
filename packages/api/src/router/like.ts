@@ -42,7 +42,7 @@ export const likeRouter = router({
       });
       if (post && post.userId !== ctx.userId) {
         await ctx.prisma.notification.create({
-          data: { userId: post.userId, type: "like", referenceId: like.id },
+          data: { userId: post.userId, type: "like", referenceId: `${ctx.userId}:${input.postId}` },
         });
       }
 

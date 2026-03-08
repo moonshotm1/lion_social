@@ -9,6 +9,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import Colors from "../../src/constants/colors";
 import {
   MOCK_USERS,
@@ -30,6 +31,7 @@ const userPosts = MOCK_POSTS.filter((p) => p.userId === currentUser.id);
 type ProfileTab = "posts" | "saved";
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
 
   const displayPosts = activeTab === "posts" ? userPosts : [];
@@ -138,6 +140,7 @@ export default function ProfileScreen() {
             {displayPosts.map((post, index) => (
               <Pressable
                 key={post.id}
+                onPress={() => router.push(`/post/${post.id}`)}
                 style={[
                   styles.gridItem,
                   {

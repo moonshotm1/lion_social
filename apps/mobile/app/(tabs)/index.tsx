@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,34 +10,110 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "../../src/constants/colors";
-import { MOCK_POSTS, type MockPost } from "../../src/constants/mock-data";
+import { type MockPost } from "../../src/constants/mock-data";
 import PostCard from "../../src/components/PostCard";
+import { supabase } from "../../src/lib/supabase";
 
 type FeedTab = "following" | "explore";
+
+async function fetchFeedPosts(): Promise<MockPost[]> {
+  console.log("[Feed] starting load");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { console.log("[Feed] no session — returning empty"); return []; }
+  console.log("[Feed] session ok, userId:", session.user.id);
+
+  const { data: appUser } = await supabase
+    .from("User")
+    .select("id")
+    .eq("supabaseId", session.user.id)
+    .single();
+
+  const currentUserId = (appUser as any)?.id ?? null;
+  console.log("[Feed] appUser:", currentUserId);
+
+  const { data, error } = await supabase
+    .from("Post")
+    .select(`
+      id, caption, imageUrl, type, createdAt,
+      User!inner (id, username, displayName, avatarUrl, isVerified),
+      Like (id, userId),
+      Comment (id)
+    `)
+    .order("createdAt", { ascending: false })
+    .limit(20);
+
+  console.log("[Feed] posts returned:", data?.length, "error:", error?.message);
+  console.log("[Feed] first post:", JSON.stringify((data as any)?.[0]));
+
+  if (error || !data) {
+    console.error("[Feed] fetchFeedPosts error:", error?.message);
+    return [];
+  }
+
+  const mapped = (data as any[]).map((p) => ({
+    id: p.id,
+    userId: p.User.id,
+    user: {
+      id: p.User.id,
+      username: p.User.username,
+      displayName: p.User.displayName,
+      avatarUrl: p.User.avatarUrl ?? null,
+      bio: "",
+      followersCount: 0,
+      followingCount: 0,
+      postsCount: 0,
+      isVerified: p.User.isVerified ?? false,
+    },
+    type: p.type as MockPost["type"],
+    caption: p.caption,
+    imageUrl: p.imageUrl ?? null,
+    likesCount: p.Like.length,
+    commentsCount: p.Comment.length,
+    isLiked: currentUserId
+      ? p.Like.some((l: any) => l.userId === currentUserId)
+      : false,
+    createdAt: p.createdAt,
+  }));
+  console.log("[Feed] mapped posts:", mapped.length);
+  return mapped;
+}
 
 export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<FeedTab>("following");
   const [refreshing, setRefreshing] = useState(false);
-  const [posts, setPosts] = useState<MockPost[]>(MOCK_POSTS);
+  const [posts, setPosts] = useState<MockPost[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const onRefresh = useCallback(() => {
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      const result = await fetchFeedPosts();
+      if (!cancelled) {
+        setPosts(result);
+        setLoading(false);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Simulate network request
-    setTimeout(() => {
-      setPosts([...MOCK_POSTS]);
-      setRefreshing(false);
-    }, 1500);
+    const result = await fetchFeedPosts();
+    setPosts(result);
+    setRefreshing(false);
   }, []);
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* App Title */}
       <View style={styles.titleRow}>
         <Text style={styles.titleText}>GAINS</Text>
         <View style={styles.titleAccent} />
       </View>
 
-      {/* Feed Toggle */}
       <View style={styles.tabRow}>
         <Pressable
           onPress={() => setActiveTab("following")}
@@ -83,6 +159,16 @@ export default function HomeScreen() {
     </View>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <FlatList
@@ -112,6 +198,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.black,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   listContent: {
     paddingBottom: 100,

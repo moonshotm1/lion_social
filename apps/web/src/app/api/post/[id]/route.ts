@@ -23,11 +23,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Increment view count
-    await supabase
-      .from('Post')
-      .update({ viewCount: (post.viewCount ?? 0) + 1 })
-      .eq('id', postId);
+    // Increment view count atomically (avoids race conditions under concurrent requests)
+    await supabase.rpc('increment_post_view', { post_id: postId });
 
     // Fetch post owner
     const { data: user } = await supabase
@@ -67,7 +64,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
     return NextResponse.json({
       ...post,
-      viewCount: (post.viewCount ?? 0) + 1,
+      viewCount: (post.viewCount ?? 0) + 1, // optimistic +1; DB was incremented atomically
       user: user ?? { id: post.userId, username: 'unknown', avatarUrl: null, bio: null },
       comments: enrichedComments,
       _count: {

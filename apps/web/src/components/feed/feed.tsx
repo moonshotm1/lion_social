@@ -36,7 +36,7 @@ export function Feed() {
   const [activeTab, setActiveTab] = useState<FeedTab>("following");
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
-  const { posts: filteredPosts, isLoading } = useFeed(activeCategory);
+  const { posts: filteredPosts, isLoading } = useFeed(activeCategory, activeTab);
 
   return (
     <div className="space-y-6">

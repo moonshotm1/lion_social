@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,9 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
+import { useRouter } from "expo-router";
 import Colors from "../constants/colors";
+import { supabase } from "../lib/supabase";
 import { type MockPost, getRelativeTime, formatCount } from "../constants/mock-data";
 import Avatar from "./Avatar";
 import PostTypeBadge from "./PostTypeBadge";
@@ -19,12 +21,64 @@ interface PostCardProps {
 }
 
 export default function PostCard({ post }: PostCardProps) {
+  const router = useRouter();
   const [isLiked, setIsLiked] = useState(post.isLiked);
   const [likesCount, setLikesCount] = useState(post.likesCount);
+  const [appUserId, setAppUserId] = useState<string | null>(null);
 
-  const handleLike = () => {
-    setIsLiked((prev) => !prev);
-    setLikesCount((prev) => (isLiked ? prev - 1 : prev + 1));
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return;
+      const { data: appUser } = await supabase
+        .from("User")
+        .select("id")
+        .eq("supabaseId", session.user.id)
+        .single();
+      if (!appUser) return;
+      setAppUserId(appUser.id);
+      const { data: like } = await supabase
+        .from("Like")
+        .select("id")
+        .eq("postId", post.id)
+        .eq("userId", appUser.id)
+        .maybeSingle();
+      setIsLiked(!!like);
+    });
+  }, [post.id]);
+
+  const handleLike = async () => {
+    const wasLiked = isLiked;
+    setIsLiked(!wasLiked);
+    setLikesCount((prev) => (wasLiked ? prev - 1 : prev + 1));
+
+    if (!appUserId) return;
+
+    if (wasLiked) {
+      const { error } = await supabase
+        .from("Like")
+        .delete()
+        .eq("postId", post.id)
+        .eq("userId", appUserId);
+      if (error) {
+        setIsLiked(wasLiked);
+        setLikesCount((prev) => prev + 1);
+      }
+    } else {
+      const { error } = await supabase
+        .from("Like")
+        .insert({ postId: post.id, userId: appUserId });
+      if (error) {
+        setIsLiked(wasLiked);
+        setLikesCount((prev) => prev - 1);
+      }
+    }
+  };
+
+  // Navigate to the post detail screen. View tracking fires there on mount,
+  // which is the authoritative "post opened" event.
+  const openPost = () => {
+    console.log("[PostCard] Opening post:", post.id);
+    router.push(`/post/${post.id}`);
   };
 
   return (
@@ -56,7 +110,7 @@ export default function PostCard({ post }: PostCardProps) {
 
       {/* Image */}
       {post.imageUrl && (
-        <Pressable style={styles.imageContainer}>
+        <Pressable style={styles.imageContainer} onPress={openPost}>
           <Image
             source={{ uri: post.imageUrl }}
             style={styles.postImage}
@@ -68,13 +122,13 @@ export default function PostCard({ post }: PostCardProps) {
       )}
 
       {/* Caption */}
-      <View style={styles.captionContainer}>
+      <Pressable style={styles.captionContainer} onPress={openPost}>
         <Text style={styles.caption}>
           <Text style={styles.captionUsername}>{post.user.username}</Text>
           {"  "}
           {post.caption}
         </Text>
-      </View>
+      </Pressable>
 
       {/* Action Row */}
       <View style={styles.actionRow}>
@@ -98,7 +152,7 @@ export default function PostCard({ post }: PostCardProps) {
             </Text>
           </Pressable>
 
-          <Pressable style={styles.actionButton}>
+          <Pressable style={styles.actionButton} onPress={openPost}>
             <Text style={styles.actionIcon}>💬</Text>
             <Text style={styles.actionCount}>
               {formatCount(post.commentsCount)}
