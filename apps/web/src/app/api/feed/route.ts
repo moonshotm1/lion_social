@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
       await Promise.all([
         supabase
           .from("User")
-          .select("id, username, displayName, avatarUrl, isVerified")
+          .select("id, username, avatarUrl")
           .in("id", userIds),
         supabase
           .from("Like")
@@ -123,9 +123,7 @@ export async function GET(req: NextRequest) {
       user: userMap[p.userId] ?? {
         id: p.userId,
         username: "unknown",
-        displayName: "Unknown",
         avatarUrl: null,
-        isVerified: false,
       },
       likesCount: likeCountMap[p.id] ?? 0,
       commentsCount: commentCountMap[p.id] ?? 0,
