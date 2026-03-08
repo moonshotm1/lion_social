@@ -93,6 +93,9 @@ export async function GET(req: NextRequest) {
           .in("postId", postIds),
       ]);
 
+    console.log("[feed] userIds to fetch:", userIds);
+    console.log("[feed] users returned:", users?.length, JSON.stringify(users?.[0]));
+
     const userMap: Record<string, any> = Object.fromEntries(
       (users ?? []).map((u: any) => [u.id, u])
     );
