@@ -22,8 +22,6 @@ import {
 } from "lucide-react";
 import type { MockPost, WorkoutData, MealData, QuoteData, StoryData } from "@/lib/types";
 import { getTimeAgo, formatCount, postTypeConfig } from "@/lib/types";
-import { useLike } from "@/hooks/use-like";
-import { useSave } from "@/hooks/use-save";
 import { isClientDemoMode } from "@/lib/env-client";
 
 // ─── Comment types ──────────────────────────────────────────────────────────
@@ -433,10 +431,9 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const [isAnimatingLike, setIsAnimatingLike] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments);
+  const [viewCount, setViewCount] = useState(post.views);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCountRef = useRef(0);
-  const { toggleLike } = useLike();
-  const { toggleSave } = useSave();
 
   const typeConfig = postTypeConfig[post.type];
 
@@ -455,13 +452,38 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     }
   };
 
-  const handleLike = () => {
+  const handleLike = async () => {
+    const wasLiked = isLiked;
     setIsAnimatingLike(true);
-    setIsLiked(!isLiked);
-    setLikeCount((prev) => (isLiked ? prev - 1 : prev + 1));
-    toggleLike(post.id);
+    setIsLiked(!wasLiked);
+    setLikeCount((prev) => (wasLiked ? prev - 1 : prev + 1));
     onLike?.(post.id);
     setTimeout(() => setIsAnimatingLike(false), 300);
+    if (!isClientDemoMode) {
+      try {
+        const res = await fetch(`/api/post/${post.id}/like`, { method: "POST" });
+        if (!res.ok) throw new Error();
+      } catch {
+        setIsLiked(wasLiked);
+        setLikeCount((prev) => (wasLiked ? prev + 1 : prev - 1));
+      }
+    }
+  };
+
+  const handleSave = async () => {
+    const wasFavorited = isFavorited;
+    const next = !wasFavorited;
+    setIsFavorited(next);
+    setFavCount((prev) => (next ? prev + 1 : prev - 1));
+    if (!isClientDemoMode) {
+      try {
+        const res = await fetch(`/api/post/${post.id}/save`, { method: "POST" });
+        if (!res.ok) throw new Error();
+      } catch {
+        setIsFavorited(wasFavorited);
+        setFavCount((prev) => (next ? prev - 1 : prev + 1));
+      }
+    }
   };
 
   // Unified click handler for the image area.
@@ -477,6 +499,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       if (count >= 2) {
         if (!isLiked) handleLike();
       } else if (!expanded) {
+        setViewCount((prev) => prev + 1);
         router.push(`/post/${post.id}`);
       }
     }, 230);
@@ -587,7 +610,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       {/* ── Caption ─────────────────────────────────────────────────────── */}
       <div
         className={`px-4 pt-2 pb-2 ${!expanded ? "cursor-pointer" : ""}`}
-        onClick={!expanded ? () => router.push(`/post/${post.id}`) : undefined}
+        onClick={!expanded ? () => { setViewCount((prev) => prev + 1); router.push(`/post/${post.id}`); } : undefined}
       >
         <p className="text-sm text-lion-gray-5 leading-relaxed whitespace-pre-line">
           {post.caption}
@@ -612,7 +635,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       <div className="flex items-center gap-1.5 px-4 pb-2">
         <Eye className="w-3.5 h-3.5 text-lion-gray-2" />
         <span className="text-xs text-lion-gray-2">
-          {formatCount(post.views)} views
+          {formatCount(viewCount)} views
         </span>
       </div>
 
@@ -681,12 +704,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
         <div className="flex items-center gap-3">
           {/* Favorite / Save */}
           <button
-            onClick={() => {
-              const next = !isFavorited;
-              setIsFavorited(next);
-              setFavCount((prev) => (next ? prev + 1 : prev - 1));
-              toggleSave(post.id);
-            }}
+            onClick={handleSave}
             className="flex items-center gap-1.5 group"
           >
             <Star
