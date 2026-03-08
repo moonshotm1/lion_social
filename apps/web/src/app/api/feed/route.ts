@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const tab = searchParams.get("tab") ?? "explore";
   const type = searchParams.get("type");
 
-  // Resolve current user — try Authorization header first, then cookie session
+  // Resolve current user — try Authorization header first
   let currentUserId: string | null = null;
   try {
     const auth = req.headers.get("authorization");
@@ -52,10 +52,18 @@ export async function GET(req: NextRequest) {
       if (followingUserIds.length === 0) return NextResponse.json({ posts: [] });
     }
 
-    // Fetch posts
+    // Fetch posts with embedded relations for counts and user state.
+    // Using embedded arrays (Like, Comment, Save) so we can count lengths
+    // and check for the current user's ID — proven reliable vs separate batch queries.
     let postQuery = supabase
       .from("Post")
-      .select("id, caption, imageUrl, type, createdAt, viewCount, userId, metadata")
+      .select(`
+        id, caption, imageUrl, type, createdAt, viewCount, metadata,
+        User!inner (id, username, avatarUrl),
+        Like (userId),
+        Comment (postId),
+        Save (userId)
+      `)
       .order("createdAt", { ascending: false })
       .limit(20);
 
@@ -73,72 +81,28 @@ export async function GET(req: NextRequest) {
     }
     if (!posts || posts.length === 0) return NextResponse.json({ posts: [] });
 
-    const postIds = (posts as any[]).map((p) => p.id);
-    const userIds = Array.from(new Set((posts as any[]).map((p) => p.userId)));
+    const result = (posts as any[]).map((p) => {
+      const likes: any[] = p.Like ?? [];
+      const comments: any[] = p.Comment ?? [];
+      const saves: any[] = p.Save ?? [];
 
-    // Batch-fetch users, likes, comments, saves
-    const [{ data: users }, { data: likes }, { data: comments }, { data: saves }] =
-      await Promise.all([
-        supabase
-          .from("User")
-          .select("id, username, avatarUrl")
-          .in("id", userIds),
-        supabase
-          .from("Like")
-          .select("postId, userId")
-          .in("postId", postIds),
-        supabase
-          .from("Comment")
-          .select("postId")
-          .in("postId", postIds),
-        supabase
-          .from("Save")
-          .select("postId, userId")
-          .in("postId", postIds),
-      ]);
-
-    const userMap: Record<string, any> = Object.fromEntries(
-      (users ?? []).map((u: any) => [u.id, u])
-    );
-
-    const likeCountMap: Record<string, number> = {};
-    const userLikedSet = new Set<string>();
-    (likes ?? []).forEach((l: any) => {
-      likeCountMap[l.postId] = (likeCountMap[l.postId] ?? 0) + 1;
-      if (currentUserId && l.userId === currentUserId) userLikedSet.add(l.postId);
+      return {
+        id: p.id,
+        caption: p.caption,
+        imageUrl: p.imageUrl ?? null,
+        type: p.type,
+        createdAt: p.createdAt,
+        viewCount: p.viewCount ?? 0,
+        metadata: p.metadata ?? {},
+        user: p.User ?? { id: "", username: "unknown", avatarUrl: null },
+        likesCount: likes.length,
+        commentsCount: comments.length,
+        savesCount: saves.length,
+        isLiked: currentUserId ? likes.some((l) => l.userId === currentUserId) : false,
+        isBookmarked: currentUserId ? saves.some((s) => s.userId === currentUserId) : false,
+      };
     });
 
-    const commentCountMap: Record<string, number> = {};
-    (comments ?? []).forEach((c: any) => {
-      commentCountMap[c.postId] = (commentCountMap[c.postId] ?? 0) + 1;
-    });
-
-    const saveCountMap: Record<string, number> = {};
-    const userSavedSet = new Set<string>();
-    (saves ?? []).forEach((s: any) => {
-      saveCountMap[s.postId] = (saveCountMap[s.postId] ?? 0) + 1;
-      if (currentUserId && s.userId === currentUserId) userSavedSet.add(s.postId);
-    });
-
-    const result = (posts as any[]).map((p) => ({
-      id: p.id,
-      caption: p.caption,
-      imageUrl: p.imageUrl ?? null,
-      type: p.type,
-      createdAt: p.createdAt,
-      viewCount: p.viewCount ?? 0,
-      metadata: p.metadata ?? {},
-      user: userMap[p.userId] ?? {
-        id: p.userId,
-        username: "unknown",
-        avatarUrl: null,
-      },
-      likesCount: likeCountMap[p.id] ?? 0,
-      commentsCount: commentCountMap[p.id] ?? 0,
-      savesCount: saveCountMap[p.id] ?? 0,
-      isLiked: userLikedSet.has(p.id),
-      isBookmarked: userSavedSet.has(p.id),
-    }));
     return NextResponse.json({ posts: result });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to fetch feed";
