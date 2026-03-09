@@ -50,7 +50,7 @@ export default function ProfilePage({
   const resolvedUsername =
     params.username === "me" ? (currentUser?.username ?? "") : params.username;
 
-  const { user: profileUser, posts: userPosts, isLoading } = useUserProfile(resolvedUsername);
+  const { user: profileUser, posts: userPosts, isFollowing: profileIsFollowing, isLoading } = useUserProfile(resolvedUsername);
 
   const isOwnProfile =
     !!currentUser &&
@@ -102,25 +102,15 @@ export default function ProfilePage({
       .catch(() => {});
   }, [isOwnProfile]);
 
-  // Sync followersCount from profile data
+  // Sync follow state and followers count from profile data (resolved server-side)
   useEffect(() => {
     if (profileUser?.followers !== undefined) {
       setFollowersCount(profileUser.followers);
     }
-  }, [profileUser?.followers]);
-
-  // Fetch initial follow state when profile loads (not own profile)
-  useEffect(() => {
-    if (isOwnProfile || !profileUser?.id) return;
-    createSupabaseBrowserClient().auth.getSession().then(({ data: { session } }) => {
-      const headers: Record<string, string> = {};
-      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
-      fetch(`/api/user/follow?targetUserId=${encodeURIComponent(profileUser.id)}`, { headers })
-        .then((r) => r.json())
-        .then((data) => { setIsFollowing(!!data.following); })
-        .catch(() => {});
-    });
-  }, [isOwnProfile, profileUser?.id]);
+    if (!isOwnProfile) {
+      setIsFollowing(profileIsFollowing);
+    }
+  }, [profileUser?.followers, profileIsFollowing, isOwnProfile]);
 
   const handleFollow = async () => {
     if (!profileUser?.id || followLoading) return;
