@@ -10,7 +10,9 @@ import {
   Salad,
   Quote,
   BookOpen,
+  Users,
 } from "lucide-react";
+import Link from "next/link";
 import { PostCard } from "./post-card";
 import { useFeed } from "@/hooks/use-feed";
 import type { PostType } from "@/lib/types";
@@ -131,7 +133,7 @@ export function Feed() {
 
       {/* Posts Feed */}
       <div className="space-y-5">
-        {filteredPosts.length > 0 ? (
+        {isLoading ? null : filteredPosts.length > 0 ? (
           filteredPosts.map((post, index) => (
             <div
               key={post.id}
@@ -141,6 +143,24 @@ export function Feed() {
               <PostCard post={post} />
             </div>
           ))
+        ) : activeTab === "following" ? (
+          <div className="flex flex-col items-center gap-4 py-20 text-center">
+            <div className="w-16 h-16 rounded-full bg-lion-gold/10 flex items-center justify-center">
+              <Users className="w-8 h-8 text-lion-gold/60" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-lion-white">No posts yet</p>
+              <p className="text-xs text-lion-gray-3">
+                Follow people to see their posts here
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveTab("explore")}
+              className="mt-1 px-5 py-2 rounded-xl text-sm font-semibold btn-gold"
+            >
+              Explore Posts
+            </button>
+          </div>
         ) : (
           <div className="text-center py-16">
             <p className="text-sm text-lion-gray-3">

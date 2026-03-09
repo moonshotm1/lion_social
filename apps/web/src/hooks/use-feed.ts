@@ -40,14 +40,38 @@ function useFeedReal(
   const [allPosts, setAllPosts] = useState<MockPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  // undefined = not yet resolved, null = unauthenticated, string = supabase user id
+  const [authUserId, setAuthUserId] = useState<string | null | undefined>(undefined);
+
+  // Resolve auth state once and listen for changes.
+  // Including authUserId in the load effect ensures the feed re-fetches
+  // with the correct Bearer token once the session is available —
+  // this fixes both the isLiked inconsistency and the empty following tab.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthUserId(session?.user?.id ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setAuthUserId(session?.user?.id ?? null);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
+    // Wait until auth state is resolved before fetching
+    if (authUserId === undefined) return;
+
     let cancelled = false;
 
     async function load() {
       setIsLoading(true);
       try {
-        // Get auth token for isLiked resolution and following-tab filtering
         const supabase = createSupabaseBrowserClient();
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
@@ -63,7 +87,6 @@ function useFeedReal(
         if (!res.ok) throw new Error(data.error ?? "Failed to fetch posts");
 
         const posts = (data.posts ?? []).map(transformPost);
-        console.log("[useFeed] Fetched", posts.length, "posts (tab:", tab, ")");
         if (!cancelled) {
           setAllPosts(posts);
           setIsLoading(false);
@@ -79,7 +102,7 @@ function useFeedReal(
 
     load();
     return () => { cancelled = true; };
-  }, [tab, filter]);
+  }, [tab, filter, authUserId]);
 
   return {
     posts: allPosts,
