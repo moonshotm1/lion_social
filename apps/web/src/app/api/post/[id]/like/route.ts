@@ -39,20 +39,37 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const { data: existing } = await supabase
+    // Delete-first toggle: if a Like row exists, remove it (unlike); otherwise insert (like).
+    // This avoids race conditions where the SELECT misses an existing row.
+    const { data: deleted, error: deleteErr } = await supabase
       .from('Like')
-      .select('id')
+      .delete()
       .eq('userId', dbUser.id)
       .eq('postId', postId)
-      .single();
+      .select('id');
 
-    if (existing) {
-      await supabase.from('Like').delete().eq('id', existing.id);
+    if (deleteErr) {
+      console.error('[like] delete error:', deleteErr.message);
+      return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+    }
+
+    if (deleted && deleted.length > 0) {
+      // Was liked — now unliked
       return NextResponse.json({ liked: false });
     }
 
+    // Was not liked — insert new Like
     const now = new Date().toISOString();
-    await supabase.from('Like').insert({ id: genId(), userId: dbUser.id, postId, createdAt: now });
+    const { error: insertErr } = await supabase
+      .from('Like')
+      .insert({ id: genId(), userId: dbUser.id, postId, createdAt: now });
+
+    if (insertErr) {
+      // 23505 = unique_violation: another request already inserted — still liked
+      if (insertErr.code === '23505') return NextResponse.json({ liked: true });
+      console.error('[like] insert error:', insertErr.message);
+      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    }
 
     // Notify post owner (not self)
     const { data: post } = await supabase

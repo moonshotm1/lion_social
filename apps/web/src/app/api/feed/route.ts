@@ -19,33 +19,49 @@ export async function GET(req: NextRequest) {
 
   // Resolve current user from Authorization header
   let currentUserId: string | null = null;
-  try {
-    const auth = req.headers.get("authorization");
-    if (auth?.startsWith("Bearer ")) {
-      const token = auth.slice(7);
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) {
-        const { data: appUser } = await supabase
+  const auth = req.headers.get("authorization");
+  if (auth?.startsWith("Bearer ")) {
+    const token = auth.slice(7);
+    try {
+      const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+      if (authErr) {
+        console.error("[feed] auth.getUser error:", authErr.message);
+      } else if (user) {
+        const { data: appUser, error: userErr } = await supabase
           .from("User")
           .select("id")
           .eq("supabaseId", user.id)
           .single();
+        if (userErr) {
+          console.error("[feed] User lookup error:", userErr.message, "supabaseId:", user.id);
+        }
         currentUserId = (appUser as any)?.id ?? null;
+        console.log("[feed] resolved currentUserId:", currentUserId, "supabaseId:", user.id);
       }
+    } catch (e) {
+      console.error("[feed] auth resolution threw:", e);
     }
-  } catch {
-    // continue as unauthenticated
+  } else {
+    console.log("[feed] no auth header, tab:", tab);
   }
 
   try {
     // For "following" tab, get followed user IDs first
     let followingUserIds: string[] | null = null;
     if (tab === "following") {
-      if (!currentUserId) return NextResponse.json({ posts: [] });
-      const { data: follows } = await supabase
+      if (!currentUserId) {
+        console.log("[feed] following tab but no currentUserId — returning empty");
+        return NextResponse.json({ posts: [] });
+      }
+      const { data: follows, error: followsErr } = await supabase
         .from("Follow")
         .select("followingId")
         .eq("followerId", currentUserId);
+      if (followsErr) {
+        console.error("[feed] Follow query error:", followsErr.message, "code:", followsErr.code);
+        return NextResponse.json({ error: followsErr.message }, { status: 500 });
+      }
+      console.log("[feed] follows for", currentUserId, ":", follows?.length ?? 0, "rows", follows);
       followingUserIds = (follows ?? []).map((f: any) => f.followingId);
       if (followingUserIds.length === 0) return NextResponse.json({ posts: [] });
     }

@@ -23,6 +23,7 @@ import { formatCount } from "@/lib/types";
 import { transformPost } from "@/lib/transforms";
 import type { MockPost } from "@/lib/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { ConnectionsModal } from "@/components/profile/connections-modal";
 
 type ProfileTab = "posts" | "likes" | "saved";
 
@@ -36,6 +37,8 @@ export default function ProfilePage({
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+  const [showConnections, setShowConnections] = useState(false);
+  const [connectionsTab, setConnectionsTab] = useState<"followers" | "following">("followers");
 
   // Resolve the "me" alias to the current user's real username
   const { user: currentUser, isLoading: currentUserLoading } = useCurrentUser();
@@ -306,19 +309,25 @@ export default function ProfilePage({
             <p className="text-xs text-lion-gray-3">Posts</p>
           </div>
           <div className="h-8 w-px bg-lion-gold/10" />
-          <div className="text-center">
+          <button
+            className="text-center hover:opacity-80 transition-opacity active:scale-95"
+            onClick={() => { setConnectionsTab("followers"); setShowConnections(true); }}
+          >
             <p className="text-lg font-bold text-lion-white">
               {formatCount(followersCount)}
             </p>
             <p className="text-xs text-lion-gray-3">Followers</p>
-          </div>
+          </button>
           <div className="h-8 w-px bg-lion-gold/10" />
-          <div className="text-center">
+          <button
+            className="text-center hover:opacity-80 transition-opacity active:scale-95"
+            onClick={() => { setConnectionsTab("following"); setShowConnections(true); }}
+          >
             <p className="text-lg font-bold text-lion-white">
               {formatCount(user.following)}
             </p>
             <p className="text-xs text-lion-gray-3">Following</p>
-          </div>
+          </button>
         </div>
 
         {/* Invite section — own profile only */}
@@ -456,6 +465,17 @@ export default function ProfilePage({
 
       {/* Bottom spacing */}
       <div className="h-8" />
+
+      {/* Followers / Following modal */}
+      {showConnections && profileUser && (
+        <ConnectionsModal
+          userId={profileUser.id}
+          initialTab={connectionsTab}
+          followersCount={followersCount}
+          followingCount={user.following}
+          onClose={() => setShowConnections(false)}
+        />
+      )}
     </div>
   );
 }
