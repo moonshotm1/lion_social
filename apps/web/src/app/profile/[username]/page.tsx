@@ -22,6 +22,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { formatCount } from "@/lib/types";
 import { transformPost } from "@/lib/transforms";
 import type { MockPost } from "@/lib/types";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 type ProfileTab = "posts" | "likes" | "saved";
 
@@ -34,6 +35,7 @@ export default function ProfilePage({
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
 
   // Resolve the "me" alias to the current user's real username
   const { user: currentUser, isLoading: currentUserLoading } = useCurrentUser();
@@ -100,28 +102,54 @@ export default function ProfilePage({
       .catch(() => {});
   }, [isOwnProfile]);
 
+  // Sync followersCount from profile data
+  useEffect(() => {
+    if (profileUser?.followers !== undefined) {
+      setFollowersCount(profileUser.followers);
+    }
+  }, [profileUser?.followers]);
+
   // Fetch initial follow state when profile loads (not own profile)
   useEffect(() => {
     if (isOwnProfile || !profileUser?.id) return;
-    fetch(`/api/user/follow?targetUserId=${encodeURIComponent(profileUser.id)}`)
-      .then((r) => r.json())
-      .then((data) => { setIsFollowing(!!data.following); })
-      .catch(() => {});
+    createSupabaseBrowserClient().auth.getSession().then(({ data: { session } }) => {
+      const headers: Record<string, string> = {};
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      fetch(`/api/user/follow?targetUserId=${encodeURIComponent(profileUser.id)}`, { headers })
+        .then((r) => r.json())
+        .then((data) => { setIsFollowing(!!data.following); })
+        .catch(() => {});
+    });
   }, [isOwnProfile, profileUser?.id]);
 
   const handleFollow = async () => {
     if (!profileUser?.id || followLoading) return;
     setFollowLoading(true);
+    const willFollow = !isFollowing;
+    // Optimistic update
+    setIsFollowing(willFollow);
+    setFollowersCount((prev) => (willFollow ? prev + 1 : Math.max(0, prev - 1)));
     try {
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
       const res = await fetch("/api/user/follow", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ targetUserId: profileUser.id }),
       });
       const data = await res.json();
-      setIsFollowing(!!data.following);
+      if (!res.ok) throw new Error(data.error);
+      // Reconcile with server response
+      const serverFollowing = !!data.following;
+      if (serverFollowing !== willFollow) {
+        setIsFollowing(serverFollowing);
+        setFollowersCount((prev) => (serverFollowing ? prev + 1 : Math.max(0, prev - 1)));
+      }
     } catch {
-      // silently fail
+      // Revert optimistic update
+      setIsFollowing(!willFollow);
+      setFollowersCount((prev) => (willFollow ? Math.max(0, prev - 1) : prev + 1));
     } finally {
       setFollowLoading(false);
     }
@@ -290,7 +318,7 @@ export default function ProfilePage({
           <div className="h-8 w-px bg-lion-gold/10" />
           <div className="text-center">
             <p className="text-lg font-bold text-lion-white">
-              {formatCount(user.followers)}
+              {formatCount(followersCount)}
             </p>
             <p className="text-xs text-lion-gray-3">Followers</p>
           </div>

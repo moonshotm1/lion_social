@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const tab = searchParams.get("tab") ?? "explore";
   const type = searchParams.get("type");
 
-  // Resolve current user — try Authorization header first
+  // Resolve current user from Authorization header
   let currentUserId: string | null = null;
   try {
     const auth = req.headers.get("authorization");
@@ -34,74 +34,94 @@ export async function GET(req: NextRequest) {
       }
     }
   } catch {
-    // Auth resolution is optional — continue as unauthenticated
+    // continue as unauthenticated
   }
 
   try {
-    // For "following" tab, get the list of users the current user follows
+    // For "following" tab, get followed user IDs first
     let followingUserIds: string[] | null = null;
     if (tab === "following") {
       if (!currentUserId) return NextResponse.json({ posts: [] });
-
       const { data: follows } = await supabase
         .from("Follow")
         .select("followingId")
         .eq("followerId", currentUserId);
-
       followingUserIds = (follows ?? []).map((f: any) => f.followingId);
       if (followingUserIds.length === 0) return NextResponse.json({ posts: [] });
     }
 
-    // Fetch posts with embedded relations for counts and user state.
-    // Using embedded arrays (Like, Comment, Save) so we can count lengths
-    // and check for the current user's ID — proven reliable vs separate batch queries.
+    // Fetch posts with author via embedded User join
     let postQuery = supabase
       .from("Post")
       .select(`
         id, caption, imageUrl, type, createdAt, viewCount, metadata,
-        User!inner (id, username, avatarUrl),
-        Like (userId),
-        Comment (postId),
-        Save (userId)
+        User!inner (id, username, avatarUrl)
       `)
       .order("createdAt", { ascending: false })
       .limit(20);
 
-    if (type && type !== "all") {
-      postQuery = postQuery.eq("type", type);
-    }
-    if (followingUserIds) {
-      postQuery = postQuery.in("userId", followingUserIds);
-    }
+    if (type && type !== "all") postQuery = postQuery.eq("type", type);
+    if (followingUserIds) postQuery = postQuery.in("userId", followingUserIds);
 
-    const { data: posts, error } = await postQuery;
-    if (error) {
-      console.error("[feed] Post query error:", error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data: posts, error: postsError } = await postQuery;
+    if (postsError) {
+      console.error("[feed] Post query error:", postsError.message);
+      return NextResponse.json({ error: postsError.message }, { status: 500 });
     }
     if (!posts || posts.length === 0) return NextResponse.json({ posts: [] });
 
-    const result = (posts as any[]).map((p) => {
-      const likes: any[] = p.Like ?? [];
-      const comments: any[] = p.Comment ?? [];
-      const saves: any[] = p.Save ?? [];
+    const postIds = (posts as any[]).map((p) => p.id);
 
-      return {
-        id: p.id,
-        caption: p.caption,
-        imageUrl: p.imageUrl ?? null,
-        type: p.type,
-        createdAt: p.createdAt,
-        viewCount: p.viewCount ?? 0,
-        metadata: p.metadata ?? {},
-        user: p.User ?? { id: "", username: "unknown", avatarUrl: null },
-        likesCount: likes.length,
-        commentsCount: comments.length,
-        savesCount: saves.length,
-        isLiked: currentUserId ? likes.some((l) => l.userId === currentUserId) : false,
-        isBookmarked: currentUserId ? saves.some((s) => s.userId === currentUserId) : false,
-      };
-    });
+    // Batch fetch social data for all posts in parallel
+    const [
+      { data: likesData, error: likesErr },
+      { data: commentsData, error: commentsErr },
+      { data: savesData, error: savesErr },
+    ] = await Promise.all([
+      supabase.from("Like").select("postId, userId").in("postId", postIds),
+      supabase.from("Comment").select("postId").in("postId", postIds),
+      supabase.from("Save").select("postId, userId").in("postId", postIds),
+    ]);
+
+    if (likesErr) console.error("[feed] Likes query error:", likesErr.message);
+    if (commentsErr) console.error("[feed] Comments query error:", commentsErr.message);
+    if (savesErr) console.error("[feed] Saves query error:", savesErr.message);
+
+    // Group counts by postId
+    const likesCount: Record<string, number> = {};
+    const isLikedSet = new Set<string>();
+    for (const l of (likesData ?? [])) {
+      likesCount[l.postId] = (likesCount[l.postId] ?? 0) + 1;
+      if (l.userId === currentUserId) isLikedSet.add(l.postId);
+    }
+
+    const commentsCount: Record<string, number> = {};
+    for (const c of (commentsData ?? [])) {
+      commentsCount[c.postId] = (commentsCount[c.postId] ?? 0) + 1;
+    }
+
+    const savesCount: Record<string, number> = {};
+    const isSavedSet = new Set<string>();
+    for (const s of (savesData ?? [])) {
+      savesCount[s.postId] = (savesCount[s.postId] ?? 0) + 1;
+      if (s.userId === currentUserId) isSavedSet.add(s.postId);
+    }
+
+    const result = (posts as any[]).map((p) => ({
+      id: p.id,
+      caption: p.caption,
+      imageUrl: p.imageUrl ?? null,
+      type: p.type,
+      createdAt: p.createdAt,
+      viewCount: p.viewCount ?? 0,
+      metadata: p.metadata ?? {},
+      user: p.User ?? { id: "", username: "unknown", avatarUrl: null },
+      likesCount: likesCount[p.id] ?? 0,
+      commentsCount: commentsCount[p.id] ?? 0,
+      savesCount: savesCount[p.id] ?? 0,
+      isLiked: isLikedSet.has(p.id),
+      isBookmarked: isSavedSet.has(p.id),
+    }));
 
     return NextResponse.json({ posts: result });
   } catch (err) {

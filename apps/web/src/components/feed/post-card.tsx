@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,7 @@ import {
 import type { MockPost, WorkoutData, MealData, QuoteData, StoryData } from "@/lib/types";
 import { getTimeAgo, formatCount, postTypeConfig } from "@/lib/types";
 import { isClientDemoMode } from "@/lib/env-client";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 // ─── Comment types ──────────────────────────────────────────────────────────
 
@@ -86,9 +87,13 @@ function InlineComments({
     onCountChange(initialCount + 1);
     setText("");
     try {
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
       const res = await fetch(`/api/post/${postId}/comment`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ content: trimmed }),
       });
       if (res.ok) {
@@ -434,6 +439,14 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const [viewCount, setViewCount] = useState(post.views);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCountRef = useRef(0);
+  const viewFiredRef = useRef(false);
+
+  // Track view once per PostCard mount
+  useEffect(() => {
+    if (isClientDemoMode || viewFiredRef.current) return;
+    viewFiredRef.current = true;
+    fetch(`/api/post/${post.id}/view`, { method: "POST" }).catch(() => {});
+  }, [post.id]);
 
   const typeConfig = postTypeConfig[post.type];
 
@@ -461,7 +474,11 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     setTimeout(() => setIsAnimatingLike(false), 300);
     if (!isClientDemoMode) {
       try {
-        const res = await fetch(`/api/post/${post.id}/like`, { method: "POST" });
+        const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+        const res = await fetch(`/api/post/${post.id}/like`, {
+          method: "POST",
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        });
         if (!res.ok) throw new Error();
       } catch {
         setIsLiked(wasLiked);
@@ -477,7 +494,11 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     setFavCount((prev) => (next ? prev + 1 : prev - 1));
     if (!isClientDemoMode) {
       try {
-        const res = await fetch(`/api/post/${post.id}/save`, { method: "POST" });
+        const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+        const res = await fetch(`/api/post/${post.id}/save`, {
+          method: "POST",
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        });
         if (!res.ok) throw new Error();
       } catch {
         setIsFavorited(wasFavorited);

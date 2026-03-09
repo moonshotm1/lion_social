@@ -8,21 +8,28 @@ function genId() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 }
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const postId = params.id;
-    const { createSupabaseServerClient } = await import('@/lib/supabase');
-    const authClient = await createSupabaseServerClient();
-    const { data: { user: authUser }, error: authError } = await authClient.auth.getUser();
+    const supabase = getServiceClient();
 
+    // Resolve auth from Authorization header (sent by browser client)
+    const auth = req.headers.get('authorization');
+    if (!auth?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const token = auth.slice(7);
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !authUser) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
 
     const { data: dbUser } = await supabase
       .from('User')

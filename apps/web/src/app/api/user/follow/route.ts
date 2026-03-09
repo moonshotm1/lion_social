@@ -8,32 +8,38 @@ function genId() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 }
 
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+async function resolveDbUser(supabase: ReturnType<typeof getServiceClient>, token: string) {
+  const { data: { user: authUser }, error } = await supabase.auth.getUser(token);
+  if (error || !authUser) return null;
+  const { data: dbUser } = await supabase
+    .from('User')
+    .select('id')
+    .eq('supabaseId', authUser.id)
+    .single();
+  return dbUser ?? null;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { createSupabaseServerClient } = await import('@/lib/supabase');
-    const authClient = await createSupabaseServerClient();
-    const { data: { user: authUser }, error: authError } = await authClient.auth.getUser();
+    const supabase = getServiceClient();
 
-    if (authError || !authUser) {
+    const auth = req.headers.get('authorization');
+    if (!auth?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+    const dbUser = await resolveDbUser(supabase, auth.slice(7));
+    if (!dbUser) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
     const body = await req.json();
     const { targetUserId } = body;
     if (!targetUserId) return NextResponse.json({ error: 'targetUserId is required' }, { status: 400 });
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    const { data: dbUser } = await supabase
-      .from('User')
-      .select('id')
-      .eq('supabaseId', authUser.id)
-      .single();
-
-    if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 });
     if (dbUser.id === targetUserId) return NextResponse.json({ error: 'Cannot follow yourself' }, { status: 400 });
 
     const { data: existing } = await supabase
@@ -56,7 +62,6 @@ export async function POST(req: NextRequest) {
       createdAt: now,
     });
 
-    // Notify the followed user
     await supabase.from('Notification').insert({
       id: genId(),
       userId: targetUserId,
@@ -79,22 +84,12 @@ export async function GET(req: NextRequest) {
     const targetUserId = searchParams.get('targetUserId');
     if (!targetUserId) return NextResponse.json({ following: false });
 
-    const { createSupabaseServerClient } = await import('@/lib/supabase');
-    const authClient = await createSupabaseServerClient();
-    const { data: { user: authUser } } = await authClient.auth.getUser();
-    if (!authUser) return NextResponse.json({ following: false });
+    const supabase = getServiceClient();
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const auth = req.headers.get('authorization');
+    if (!auth?.startsWith('Bearer ')) return NextResponse.json({ following: false });
 
-    const { data: dbUser } = await supabase
-      .from('User')
-      .select('id')
-      .eq('supabaseId', authUser.id)
-      .single();
-
+    const dbUser = await resolveDbUser(supabase, auth.slice(7));
     if (!dbUser) return NextResponse.json({ following: false });
 
     const { data: follow } = await supabase
