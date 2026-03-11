@@ -17,21 +17,35 @@ async function normalizePosts(supabase: ReturnType<typeof getSupabase>, posts: a
   const userIds = Array.from(new Set(posts.map((p) => p.userId)))
   const postIds = posts.map((p) => p.id)
 
-  const [{ data: users }, { data: likes }, { data: comments }] = await Promise.all([
+  const [{ data: users }, { data: likes }, { data: comments }, { data: follows }] = await Promise.all([
     supabase.from('User').select('id, username, avatarUrl, bio').in('id', userIds),
     supabase.from('Like').select('postId').in('postId', postIds),
     supabase.from('Comment').select('postId').in('postId', postIds),
+    // Count followers for each author so Featured Creators shows real counts
+    supabase.from('Follow').select('followingId').in('followingId', userIds),
   ])
 
-  const userMap: Record<string, any> = Object.fromEntries((users ?? []).map((u) => [u.id, u]))
+  // Build follower count map: how many people follow each user
+  const followerCountMap: Record<string, number> = {}
+  ;(follows ?? []).forEach((f: any) => {
+    followerCountMap[f.followingId] = (followerCountMap[f.followingId] ?? 0) + 1
+  })
+
+  const userMap: Record<string, any> = Object.fromEntries(
+    (users ?? []).map((u: any) => [u.id, {
+      ...u,
+      _count: { followers: followerCountMap[u.id] ?? 0, following: 0, posts: 0 },
+    }])
+  )
+
   const likeCountMap: Record<string, number> = {}
   const commentCountMap: Record<string, number> = {}
-  ;(likes ?? []).forEach((l) => { likeCountMap[l.postId] = (likeCountMap[l.postId] ?? 0) + 1 })
-  ;(comments ?? []).forEach((c) => { commentCountMap[c.postId] = (commentCountMap[c.postId] ?? 0) + 1 })
+  ;(likes ?? []).forEach((l: any) => { likeCountMap[l.postId] = (likeCountMap[l.postId] ?? 0) + 1 })
+  ;(comments ?? []).forEach((c: any) => { commentCountMap[c.postId] = (commentCountMap[c.postId] ?? 0) + 1 })
 
   return posts.map((post) => ({
     ...post,
-    user: userMap[post.userId] ?? { id: post.userId, username: 'unknown', avatarUrl: null, bio: null },
+    user: userMap[post.userId] ?? { id: post.userId, username: 'unknown', avatarUrl: null, bio: null, _count: { followers: 0, following: 0, posts: 0 } },
     _count: {
       likes: likeCountMap[post.id] ?? 0,
       comments: commentCountMap[post.id] ?? 0,

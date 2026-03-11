@@ -467,9 +467,10 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
 
   const handleLike = async () => {
     const wasLiked = isLiked;
+    const prevCount = likeCount; // capture before optimistic update
     setIsAnimatingLike(true);
     setIsLiked(!wasLiked);
-    setLikeCount((prev) => (wasLiked ? prev - 1 : prev + 1));
+    setLikeCount(wasLiked ? prevCount - 1 : prevCount + 1);
     onLike?.(post.id);
     setTimeout(() => setIsAnimatingLike(false), 300);
     if (!isClientDemoMode) {
@@ -480,9 +481,15 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
           headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
         });
         if (!res.ok) throw new Error();
+        // Reconcile with server truth: the server's delete-first toggle
+        // returns the actual final state, which may differ from our optimistic guess.
+        const data = await res.json();
+        const serverLiked = !!data.liked;
+        setIsLiked(serverLiked);
+        setLikeCount(serverLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
       } catch {
         setIsLiked(wasLiked);
-        setLikeCount((prev) => (wasLiked ? prev + 1 : prev - 1));
+        setLikeCount(prevCount);
       }
     }
   };

@@ -11,20 +11,33 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Read current viewCount then increment (atomic enough for view tracking)
-    const { data: post } = await supabase
+    const postId = params.id;
+
+    // Read current viewCount then increment
+    const { data: post, error: readErr } = await supabase
       .from('Post')
       .select('viewCount')
-      .eq('id', params.id)
+      .eq('id', postId)
       .single();
 
-    await supabase
+    if (readErr) {
+      console.error('[view] Read error:', readErr.message, 'postId:', postId);
+      return NextResponse.json({ ok: false });
+    }
+
+    const { error: updateErr } = await supabase
       .from('Post')
       .update({ viewCount: (post?.viewCount ?? 0) + 1 })
-      .eq('id', params.id);
+      .eq('id', postId);
+
+    if (updateErr) {
+      console.error('[view] Update error:', updateErr.message, 'postId:', postId);
+      return NextResponse.json({ ok: false });
+    }
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (err) {
+    console.error('[view] Threw:', err);
     return NextResponse.json({ ok: false });
   }
 }
