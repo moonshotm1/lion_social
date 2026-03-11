@@ -17,12 +17,14 @@ async function normalizePosts(supabase: ReturnType<typeof getSupabase>, posts: a
   const userIds = Array.from(new Set(posts.map((p) => p.userId)))
   const postIds = posts.map((p) => p.id)
 
-  const [{ data: users }, { data: likes }, { data: comments }, { data: follows }] = await Promise.all([
+  const [{ data: users }, { data: likes }, { data: comments }, { data: follows }, { data: views }] = await Promise.all([
     supabase.from('User').select('id, username, avatarUrl, bio').in('id', userIds),
     supabase.from('Like').select('postId').in('postId', postIds),
     supabase.from('Comment').select('postId').in('postId', postIds),
     // Count followers for each author so Featured Creators shows real counts
     supabase.from('Follow').select('followingId').in('followingId', userIds),
+    // Unique view counts from PostView table (falls back gracefully if table missing)
+    supabase.from('PostView').select('postId').in('postId', postIds).catch(() => ({ data: null })),
   ])
 
   // Build follower count map: how many people follow each user
@@ -40,11 +42,15 @@ async function normalizePosts(supabase: ReturnType<typeof getSupabase>, posts: a
 
   const likeCountMap: Record<string, number> = {}
   const commentCountMap: Record<string, number> = {}
+  const viewCountMap: Record<string, number> = {}
   ;(likes ?? []).forEach((l: any) => { likeCountMap[l.postId] = (likeCountMap[l.postId] ?? 0) + 1 })
   ;(comments ?? []).forEach((c: any) => { commentCountMap[c.postId] = (commentCountMap[c.postId] ?? 0) + 1 })
+  ;((views as any[]) ?? []).forEach((v: any) => { viewCountMap[v.postId] = (viewCountMap[v.postId] ?? 0) + 1 })
 
   return posts.map((post) => ({
     ...post,
+    // Use PostView unique count if available, fallback to Post.viewCount
+    viewCount: viewCountMap[post.id] !== undefined ? viewCountMap[post.id] : (post.viewCount ?? 0),
     user: userMap[post.userId] ?? { id: post.userId, username: 'unknown', avatarUrl: null, bio: null, _count: { followers: 0, following: 0, posts: 0 } },
     _count: {
       likes: likeCountMap[post.id] ?? 0,

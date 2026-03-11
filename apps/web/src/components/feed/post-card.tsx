@@ -441,11 +441,22 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const clickCountRef = useRef(0);
   const viewFiredRef = useRef(false);
 
-  // Track view once per PostCard mount
+  // Track unique view once per PostCard mount — sends auth token so the server
+  // can deduplicate views per user via PostView upsert.
   useEffect(() => {
     if (isClientDemoMode || viewFiredRef.current) return;
     viewFiredRef.current = true;
-    fetch(`/api/post/${post.id}/view`, { method: "POST" }).catch(() => {});
+    const postId = post.id;
+    createSupabaseBrowserClient()
+      .auth.getSession()
+      .then(({ data: { session } }) => {
+        fetch(`/api/post/${postId}/view`, {
+          method: "POST",
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {},
+        }).catch(() => {});
+      });
   }, [post.id]);
 
   const typeConfig = postTypeConfig[post.type];
