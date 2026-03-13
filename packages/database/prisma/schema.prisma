@@ -12,6 +12,7 @@ model User {
   id          String   @id @default(cuid())
   supabaseId  String   @unique
   username    String   @unique
+  displayName String?
   bio         String?
   avatarUrl   String?
   inviteCode  String?  @unique
@@ -30,6 +31,7 @@ model User {
   sentInvites    Invite[]       @relation("SentInvites")
   receivedInvite Invite?        @relation("ReceivedInvite")
   postViews      PostView[]
+  stories        Story[]
 
   @@index([supabaseId])
   @@index([username])
@@ -150,6 +152,20 @@ model PostView {
   @@unique([postId, userId])
   @@index([postId])
   @@index([userId])
+}
+
+model Story {
+  id        String   @id
+  userId    String
+  mediaUrl  String?
+  text      String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Notification {

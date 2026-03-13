@@ -9,6 +9,7 @@ import { ArrowLeft, Camera, Check, AlertCircle, Loader2, Ticket, X } from "lucid
 interface UserProfile {
   id: string;
   username: string;
+  displayName?: string | null;
   bio: string | null;
   avatarUrl: string | null;
   inviteCode?: string | null;
@@ -23,6 +24,7 @@ export default function EditProfilePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // ── Form state ──
+  const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -62,6 +64,7 @@ export default function EditProfilePage() {
       })
       .then((data) => {
         setProfile(data);
+        setDisplayName(data.displayName ?? "");
         setUsername(data.username);
         setBio(data.bio ?? "");
         setAvatarPreview(data.avatarUrl ?? null);
@@ -228,6 +231,7 @@ export default function EditProfilePage() {
     setIsSaving(true);
     try {
       const payload: Record<string, string> = {};
+      if (displayName !== (profile.displayName ?? "")) payload.displayName = displayName;
       if (username !== profile.username) payload.username = username;
       if (bio !== (profile.bio ?? "")) payload.bio = bio;
       if (newAvatarUrl) payload.avatarUrl = newAvatarUrl;
@@ -334,6 +338,24 @@ export default function EditProfilePage() {
 
       {/* Form fields */}
       <div className="space-y-5">
+        {/* Display Name */}
+        <div className="rounded-xl border border-lion-gold/10 bg-lion-dark-2 p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-lion-gold uppercase tracking-wider">
+            Name
+          </h3>
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Your display name"
+            maxLength={50}
+            className="input-dark text-sm"
+          />
+          <p className="text-xs text-lion-gray-2">
+            {displayName.length}/50 · Shown on your profile and posts
+          </p>
+        </div>
+
         {/* Username */}
         <div className="rounded-xl border border-lion-gold/10 bg-lion-dark-2 p-5 space-y-3">
           <h3 className="text-sm font-semibold text-lion-gold uppercase tracking-wider">

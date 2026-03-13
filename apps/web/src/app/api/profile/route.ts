@@ -30,7 +30,7 @@ export async function GET() {
     const supabase = await getSupabase()
     const { data: user, error } = await supabase
       .from('User')
-      .select('id, username, bio, avatarUrl, supabaseId, createdAt, inviteCode, inviteCount, invitesUsed')
+      .select('id, username, displayName, bio, avatarUrl, supabaseId, createdAt, inviteCode, inviteCount, invitesUsed')
       .eq('supabaseId', authUser.id)
       .single()
 
@@ -59,6 +59,7 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json() as {
       username?: string
+      displayName?: string
       bio?: string
       avatarUrl?: string
     }
@@ -100,6 +101,7 @@ export async function PATCH(request: NextRequest) {
 
     const updates: Record<string, string> = {}
     if (body.username !== undefined) updates.username = body.username
+    if (body.displayName !== undefined) updates.displayName = body.displayName
     if (body.bio !== undefined) updates.bio = body.bio
     if (body.avatarUrl !== undefined) updates.avatarUrl = body.avatarUrl
 
@@ -107,7 +109,7 @@ export async function PATCH(request: NextRequest) {
       .from('User')
       .update(updates)
       .eq('supabaseId', authUser.id)
-      .select('id, username, bio, avatarUrl, supabaseId, createdAt')
+      .select('id, username, displayName, bio, avatarUrl, supabaseId, createdAt')
       .single()
 
     if (updateError) {

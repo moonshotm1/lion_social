@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
       .from("Post")
       .select(`
         id, caption, imageUrl, type, createdAt, metadata,
-        User!inner (id, username, avatarUrl)
+        User!inner (id, username, displayName, avatarUrl)
       `)
       .order("createdAt", { ascending: false })
       .range(page * pageSize, (page + 1) * pageSize - 1);

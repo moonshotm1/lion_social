@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
     // Fetch user records
     const { data: users, error: usersErr } = await supabase
       .from('User')
-      .select('id, username, avatarUrl, bio')
+      .select('id, username, displayName, avatarUrl, bio')
       .in('id', userIds)
 
     if (usersErr) return NextResponse.json({ error: usersErr.message }, { status: 500 })

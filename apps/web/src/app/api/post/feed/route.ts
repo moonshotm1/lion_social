@@ -18,7 +18,7 @@ async function normalizePosts(supabase: ReturnType<typeof getSupabase>, posts: a
   const postIds = posts.map((p) => p.id)
 
   const [{ data: users }, { data: likes }, { data: comments }, { data: follows }, { data: views }] = await Promise.all([
-    supabase.from('User').select('id, username, avatarUrl, bio').in('id', userIds),
+    supabase.from('User').select('id, username, displayName, avatarUrl, bio').in('id', userIds),
     supabase.from('Like').select('postId').in('postId', postIds),
     supabase.from('Comment').select('postId').in('postId', postIds),
     // Count followers for each author so Featured Creators shows real counts

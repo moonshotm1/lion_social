@@ -24,6 +24,8 @@ import type { MockPost, WorkoutData, MealData, QuoteData, StoryData } from "@/li
 import { getTimeAgo, formatCount, postTypeConfig } from "@/lib/types";
 import { isClientDemoMode } from "@/lib/env-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { useLikes } from "@/components/providers/likes-provider";
+import { useViews } from "@/components/providers/views-provider";
 
 // ─── Comment types ──────────────────────────────────────────────────────────
 
@@ -421,21 +423,18 @@ function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean 
 
 interface PostCardProps {
   post: MockPost;
-  /** Server-authoritative override for liked state — pass likedIds.has(post.id) from useLikedPosts() */
-  isLiked?: boolean;
   onLike?: (postId: string) => void;
   /** When true: show full story text, disable click-to-navigate (used on detail page) */
   expanded?: boolean;
 }
 
-export function PostCard({ post, isLiked: isLikedProp, onLike, expanded = false }: PostCardProps) {
+export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const router = useRouter();
-  const [isLiked, setIsLiked] = useState(isLikedProp ?? post.isLiked);
+  const { likedIds, toggleLike } = useLikes();
+  const { trackView } = useViews();
 
-  // Sync if the parent's likedIds set updates after initial mount
-  useEffect(() => {
-    if (isLikedProp !== undefined) setIsLiked(isLikedProp);
-  }, [isLikedProp]);
+  // isLiked is derived from global LikesContext — no local state needed
+  const isLiked = likedIds.has(post.id);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [isFavorited, setIsFavorited] = useState(post.isBookmarked ?? false);
   const [favCount, setFavCount] = useState(post.favorites ?? 0);
@@ -446,25 +445,11 @@ export function PostCard({ post, isLiked: isLikedProp, onLike, expanded = false 
   const [viewCount, setViewCount] = useState(post.views);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCountRef = useRef(0);
-  const viewFiredRef = useRef(false);
 
-  // Track unique view once per PostCard mount — sends auth token so the server
-  // can deduplicate views per user via PostView upsert.
+  // Track view via shared ViewsContext (deduplicates per session)
   useEffect(() => {
-    if (isClientDemoMode || viewFiredRef.current) return;
-    viewFiredRef.current = true;
-    const postId = post.id;
-    createSupabaseBrowserClient()
-      .auth.getSession()
-      .then(({ data: { session } }) => {
-        fetch(`/api/post/${postId}/view`, {
-          method: "POST",
-          headers: session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : {},
-        }).catch(() => {});
-      });
-  }, [post.id]);
+    trackView(post.id);
+  }, [post.id, trackView]);
 
   const typeConfig = postTypeConfig[post.type];
 
@@ -484,31 +469,17 @@ export function PostCard({ post, isLiked: isLikedProp, onLike, expanded = false 
   };
 
   const handleLike = async () => {
-    const wasLiked = isLiked;
-    const prevCount = likeCount; // capture before optimistic update
+    const wasLiked = likedIds.has(post.id);
+    const prevCount = likeCount;
     setIsAnimatingLike(true);
-    setIsLiked(!wasLiked);
     setLikeCount(wasLiked ? prevCount - 1 : prevCount + 1);
     onLike?.(post.id);
     setTimeout(() => setIsAnimatingLike(false), 300);
-    if (!isClientDemoMode) {
-      try {
-        const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
-        const res = await fetch(`/api/post/${post.id}/like`, {
-          method: "POST",
-          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
-        });
-        if (!res.ok) throw new Error();
-        // Reconcile with server truth: the server's delete-first toggle
-        // returns the actual final state, which may differ from our optimistic guess.
-        const data = await res.json();
-        const serverLiked = !!data.liked;
-        setIsLiked(serverLiked);
-        setLikeCount(serverLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
-      } catch {
-        setIsLiked(wasLiked);
-        setLikeCount(prevCount);
-      }
+    try {
+      const serverLiked = await toggleLike(post.id);
+      setLikeCount(serverLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
+    } catch {
+      setLikeCount(prevCount);
     }
   };
 
