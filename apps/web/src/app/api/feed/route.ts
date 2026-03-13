@@ -62,19 +62,13 @@ export async function GET(req: NextRequest) {
     const userSavedPostIds = new Set<string>();
 
     if (currentUserId) {
-      const promises: Promise<any>[] = [
+      // Likes and saves always run in parallel
+      const [likesResult, savesResult] = await Promise.all([
         supabase.from("Like").select("postId").eq("userId", currentUserId),
         supabase.from("Save").select("postId").eq("userId", currentUserId),
-      ];
-      if (tab === "following") {
-        promises.push(
-          supabase.from("Follow").select("followingId").eq("followerId", currentUserId)
-        );
-      }
+      ]);
 
-      const results = await Promise.all(promises);
-
-      const { data: userLikes, error: userLikesErr } = results[0];
+      const { data: userLikes, error: userLikesErr } = likesResult;
       if (userLikesErr) {
         console.error("[feed] user likes query error:", userLikesErr.message);
       } else {
@@ -82,7 +76,7 @@ export async function GET(req: NextRequest) {
         console.log("[feed] user liked posts:", userLikedPostIds.size);
       }
 
-      const { data: userSaves, error: userSavesErr } = results[1];
+      const { data: userSaves, error: userSavesErr } = savesResult;
       if (userSavesErr) {
         console.error("[feed] user saves query error:", userSavesErr.message);
       } else {
@@ -90,7 +84,10 @@ export async function GET(req: NextRequest) {
       }
 
       if (tab === "following") {
-        const { data: follows, error: followsErr } = results[2];
+        const { data: follows, error: followsErr } = await supabase
+          .from("Follow")
+          .select("followingId")
+          .eq("followerId", currentUserId);
         if (followsErr) {
           console.error("[feed] Follow query error:", followsErr.message, "code:", followsErr.code);
           return NextResponse.json({ error: followsErr.message }, { status: 500 });
@@ -137,7 +134,7 @@ export async function GET(req: NextRequest) {
       supabase.from("Comment").select("postId").in("postId", postIds),
       supabase.from("Save").select("postId").in("postId", postIds),
       // PostView counts unique viewers — falls back to 0 if table doesn't exist yet
-      supabase.from("PostView").select("postId").in("postId", postIds).catch(() => ({ data: null })),
+      supabase.from("PostView").select("postId").in("postId", postIds).then((r) => r, () => ({ data: null })),
     ]);
 
     if (likesErr) console.error("[feed] Likes count query error:", likesErr.message);

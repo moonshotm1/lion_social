@@ -24,7 +24,7 @@ async function normalizePosts(supabase: ReturnType<typeof getSupabase>, posts: a
     // Count followers for each author so Featured Creators shows real counts
     supabase.from('Follow').select('followingId').in('followingId', userIds),
     // Unique view counts from PostView table (falls back gracefully if table missing)
-    supabase.from('PostView').select('postId').in('postId', postIds).catch(() => ({ data: null })),
+    supabase.from('PostView').select('postId').in('postId', postIds).then((r) => r, () => ({ data: null })),
   ])
 
   // Build follower count map: how many people follow each user
