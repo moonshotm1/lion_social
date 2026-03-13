@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { PostCard } from "./post-card";
 import { useFeed } from "@/hooks/use-feed";
+import { useLikedPosts } from "@/hooks/use-liked-posts";
 import type { PostType } from "@/lib/types";
 
 type FeedTab = "following" | "explore";
@@ -39,6 +40,7 @@ export function Feed() {
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
   const { posts: filteredPosts, isLoading } = useFeed(activeCategory, activeTab);
+  const likedIds = useLikedPosts();
 
   return (
     <div className="space-y-6">
@@ -140,7 +142,7 @@ export function Feed() {
               className="animate-slide-up"
               style={{ animationDelay: `${index * 100}ms` }}
             >
-              <PostCard post={post} />
+              <PostCard post={post} isLiked={likedIds.has(post.id)} />
             </div>
           ))
         ) : activeTab === "following" ? (

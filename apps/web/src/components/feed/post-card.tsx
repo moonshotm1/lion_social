@@ -421,14 +421,21 @@ function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean 
 
 interface PostCardProps {
   post: MockPost;
+  /** Server-authoritative override for liked state — pass likedIds.has(post.id) from useLikedPosts() */
+  isLiked?: boolean;
   onLike?: (postId: string) => void;
   /** When true: show full story text, disable click-to-navigate (used on detail page) */
   expanded?: boolean;
 }
 
-export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
+export function PostCard({ post, isLiked: isLikedProp, onLike, expanded = false }: PostCardProps) {
   const router = useRouter();
-  const [isLiked, setIsLiked] = useState(post.isLiked);
+  const [isLiked, setIsLiked] = useState(isLikedProp ?? post.isLiked);
+
+  // Sync if the parent's likedIds set updates after initial mount
+  useEffect(() => {
+    if (isLikedProp !== undefined) setIsLiked(isLikedProp);
+  }, [isLikedProp]);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [isFavorited, setIsFavorited] = useState(post.isBookmarked ?? false);
   const [favCount, setFavCount] = useState(post.favorites ?? 0);

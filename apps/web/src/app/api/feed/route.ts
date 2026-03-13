@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const tab = searchParams.get("tab") ?? "explore";
   const type = searchParams.get("type");
+  const page = Math.max(0, parseInt(searchParams.get("page") ?? "0"));
+  const search = searchParams.get("search")?.trim() ?? "";
 
   // ── Step 1: Resolve authenticated user ──────────────────────────────────
   let currentUserId: string | null = null;
@@ -102,6 +104,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Step 3: Fetch posts ──────────────────────────────────────────────
+    const pageSize = 20;
     let postQuery = supabase
       .from("Post")
       .select(`
@@ -109,10 +112,11 @@ export async function GET(req: NextRequest) {
         User!inner (id, username, avatarUrl)
       `)
       .order("createdAt", { ascending: false })
-      .limit(20);
+      .range(page * pageSize, (page + 1) * pageSize - 1);
 
     if (type && type !== "all") postQuery = postQuery.eq("type", type);
     if (tab === "following") postQuery = postQuery.in("userId", followingUserIds);
+    if (search) postQuery = postQuery.ilike("caption", `%${search}%`);
 
     const { data: posts, error: postsError } = await postQuery;
     if (postsError) {
