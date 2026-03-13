@@ -169,12 +169,20 @@ function SupabaseSignInInner() {
           </div>
 
           <div className="space-y-1.5">
-            <label
-              htmlFor="password"
-              className="block text-xs font-semibold text-lion-gray-4 uppercase tracking-wider"
-            >
-              Password
-            </label>
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="password"
+                className="block text-xs font-semibold text-lion-gray-4 uppercase tracking-wider"
+              >
+                Password
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-xs text-lion-gold hover:text-lion-gold-light transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <div className="relative">
               <input
                 id="password"
