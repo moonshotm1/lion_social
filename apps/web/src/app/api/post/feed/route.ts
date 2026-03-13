@@ -17,14 +17,12 @@ async function normalizePosts(supabase: ReturnType<typeof getSupabase>, posts: a
   const userIds = Array.from(new Set(posts.map((p) => p.userId)))
   const postIds = posts.map((p) => p.id)
 
-  const [{ data: users }, { data: likes }, { data: comments }, { data: follows }, { data: views }] = await Promise.all([
+  const [{ data: users }, { data: follows }, { data: countRows }] = await Promise.all([
     supabase.from('User').select('id, username, displayName, avatarUrl, bio').in('id', userIds),
-    supabase.from('Like').select('postId').in('postId', postIds),
-    supabase.from('Comment').select('postId').in('postId', postIds),
     // Count followers for each author so Featured Creators shows real counts
     supabase.from('Follow').select('followingId').in('followingId', userIds),
-    // Unique view counts from PostView table (falls back gracefully if table missing)
-    supabase.from('PostView').select('postId').in('postId', postIds).then((r) => r, () => ({ data: null })),
+    // Inline counts — one query for all posts, guaranteed accurate per row
+    supabase.from('Post').select('id, likes:Like(count), comments:Comment(count), views:PostView(count)').in('id', postIds),
   ])
 
   // Build follower count map: how many people follow each user
@@ -40,21 +38,22 @@ async function normalizePosts(supabase: ReturnType<typeof getSupabase>, posts: a
     }])
   )
 
-  const likeCountMap: Record<string, number> = {}
-  const commentCountMap: Record<string, number> = {}
-  const viewCountMap: Record<string, number> = {}
-  ;(likes ?? []).forEach((l: any) => { likeCountMap[l.postId] = (likeCountMap[l.postId] ?? 0) + 1 })
-  ;(comments ?? []).forEach((c: any) => { commentCountMap[c.postId] = (commentCountMap[c.postId] ?? 0) + 1 })
-  ;((views as any[]) ?? []).forEach((v: any) => { viewCountMap[v.postId] = (viewCountMap[v.postId] ?? 0) + 1 })
+  const countMap: Record<string, { likes: number; comments: number; views: number }> = {}
+  ;(countRows ?? []).forEach((row: any) => {
+    countMap[row.id] = {
+      likes:    Number(row.likes?.[0]?.count    ?? 0),
+      comments: Number(row.comments?.[0]?.count ?? 0),
+      views:    Number(row.views?.[0]?.count    ?? 0),
+    }
+  })
 
   return posts.map((post) => ({
     ...post,
-    // View count = unique viewers from PostView table only
-    viewCount: viewCountMap[post.id] ?? 0,
+    viewCount: countMap[post.id]?.views    ?? 0,
     user: userMap[post.userId] ?? { id: post.userId, username: 'unknown', avatarUrl: null, bio: null, _count: { followers: 0, following: 0, posts: 0 } },
     _count: {
-      likes: likeCountMap[post.id] ?? 0,
-      comments: commentCountMap[post.id] ?? 0,
+      likes:    countMap[post.id]?.likes    ?? 0,
+      comments: countMap[post.id]?.comments ?? 0,
       saves: 0,
     },
   }))
