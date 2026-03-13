@@ -49,8 +49,8 @@ async function normalizePosts(supabase: ReturnType<typeof getSupabase>, posts: a
 
   return posts.map((post) => ({
     ...post,
-    // Use PostView unique count if available, fallback to Post.viewCount
-    viewCount: viewCountMap[post.id] !== undefined ? viewCountMap[post.id] : (post.viewCount ?? 0),
+    // View count = unique viewers from PostView table only
+    viewCount: viewCountMap[post.id] ?? 0,
     user: userMap[post.userId] ?? { id: post.userId, username: 'unknown', avatarUrl: null, bio: null, _count: { followers: 0, following: 0, posts: 0 } },
     _count: {
       likes: likeCountMap[post.id] ?? 0,

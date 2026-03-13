@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
     let postQuery = supabase
       .from("Post")
       .select(`
-        id, caption, imageUrl, type, createdAt, viewCount, metadata,
+        id, caption, imageUrl, type, createdAt, metadata,
         User!inner (id, username, avatarUrl)
       `)
       .order("createdAt", { ascending: false })
@@ -168,8 +168,8 @@ export async function GET(req: NextRequest) {
       imageUrl: p.imageUrl ?? null,
       type: p.type,
       createdAt: p.createdAt,
-      // Use PostView unique count if available, fallback to Post.viewCount
-      viewCount: viewsCount[p.id] !== undefined ? viewsCount[p.id] : (p.viewCount ?? 0),
+      // View count = unique viewers from PostView table only (no fallback to old viewCount column)
+      viewCount: viewsCount[p.id] ?? 0,
       metadata: p.metadata ?? {},
       user: p.User ?? { id: "", username: "unknown", avatarUrl: null },
       likesCount: likesCount[p.id] ?? 0,

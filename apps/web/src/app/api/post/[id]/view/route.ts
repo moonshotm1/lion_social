@@ -41,17 +41,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ ok: true }); // non-fatal
     }
 
-    // UPSERT: on conflict (postId, userId) do nothing — enforces unique view per user
-    const { error: upsertErr } = await supabase
-      .from('PostView')
-      .upsert(
-        { id: genId(), postId, userId: dbUser.id, createdAt: new Date().toISOString() },
-        { onConflict: 'postId,userId', ignoreDuplicates: true }
-      );
+    // --- Reliable deduplication: select-then-insert ---
+    // UPSERT with onConflict is unreliable for camelCase column names across
+    // PostgREST versions. Instead: check for existing row, insert only if absent.
 
-    if (upsertErr) {
-      // If PostView table doesn't exist yet (migration not run), log but don't fail
-      console.error('[view] PostView upsert error:', upsertErr.message, 'code:', upsertErr.code);
+    const { data: existing } = await supabase
+      .from('PostView')
+      .select('id')
+      .eq('postId', postId)
+      .eq('userId', dbUser.id)
+      .maybeSingle();
+
+    if (existing) {
+      // Already viewed by this user — no-op
+      return NextResponse.json({ ok: true });
+    }
+
+    const { error: insertErr } = await supabase
+      .from('PostView')
+      .insert({ id: genId(), postId, userId: dbUser.id, createdAt: new Date().toISOString() });
+
+    if (insertErr) {
+      if (insertErr.code === '23505') {
+        // Race condition: concurrent request already inserted — ignore
+        return NextResponse.json({ ok: true });
+      }
+      console.error('[view] Insert error:', insertErr.message, 'code:', insertErr.code,
+        'postId:', postId, 'userId:', dbUser.id);
     }
 
     return NextResponse.json({ ok: true });
