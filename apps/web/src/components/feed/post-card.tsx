@@ -445,10 +445,24 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const [viewCount, setViewCount] = useState(post.views);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCountRef = useRef(0);
+  const articleRef = useRef<HTMLElement>(null);
 
-  // Track view via shared ViewsContext (deduplicates per session)
+  // Track view via IntersectionObserver — only fires when post is actually visible,
+  // and ViewsProvider will queue the request if the auth token isn't ready yet.
   useEffect(() => {
-    trackView(post.id);
+    const el = articleRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          trackView(post.id);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [post.id, trackView]);
 
   const typeConfig = postTypeConfig[post.type];
@@ -527,7 +541,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const showImage = post.image && post.type !== "quote";
 
   return (
-    <article className="card-premium p-0 overflow-hidden animate-fade-in">
+    <article ref={articleRef} className="card-premium p-0 overflow-hidden animate-fade-in">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between p-4 pb-3">
         <div className="flex items-center gap-3">

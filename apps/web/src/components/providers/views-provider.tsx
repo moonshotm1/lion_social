@@ -5,23 +5,36 @@ import { isClientDemoMode } from "@/lib/env-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 interface ViewsContextValue {
-  /** Track a view for a post. Deduplicates client-side so each post is only sent once per session. */
+  /** Record a view for a post. Deduplicates per session and queues until auth token is ready. */
   trackView: (postId: string) => void;
 }
 
-const ViewsContext = createContext<ViewsContextValue>({
-  trackView: () => {},
-});
+const ViewsContext = createContext<ViewsContextValue>({ trackView: () => {} });
 
 export function useViews() {
   return useContext(ViewsContext);
 }
 
 export function ViewsProvider({ children }: { children: React.ReactNode }) {
+  // Client-side dedup: post IDs already viewed this session
   const viewedIdsRef = useRef<Set<string>>(new Set());
+  // Auth token — set once Supabase session resolves
   const tokenRef = useRef<string | undefined>(undefined);
+  // Posts viewed before token was available — flushed once token loads
+  const pendingRef = useRef<Set<string>>(new Set());
 
-  // Get and cache the auth token, refresh on auth state change
+  function sendView(postId: string, token: string) {
+    fetch(`/api/post/${postId}/view`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
+  }
+
+  function flushPending(token: string) {
+    pendingRef.current.forEach((postId) => sendView(postId, token));
+    pendingRef.current.clear();
+  }
+
   useEffect(() => {
     if (isClientDemoMode) return;
 
@@ -29,30 +42,35 @@ export function ViewsProvider({ children }: { children: React.ReactNode }) {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       tokenRef.current = session?.access_token;
+      if (session?.access_token) flushPending(session.access_token);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         tokenRef.current = session?.access_token;
-        // Clear viewed set on sign-out so new user gets fresh views
-        if (!session) viewedIdsRef.current = new Set();
+        if (session?.access_token) {
+          flushPending(session.access_token);
+        } else {
+          // Signed out — reset so new user gets fresh view session
+          viewedIdsRef.current = new Set();
+          pendingRef.current.clear();
+        }
       }
     );
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const trackView = useCallback((postId: string) => {
     if (isClientDemoMode || viewedIdsRef.current.has(postId)) return;
     viewedIdsRef.current.add(postId);
 
-    // Fire-and-forget — non-fatal
-    fetch(`/api/post/${postId}/view`, {
-      method: "POST",
-      headers: tokenRef.current
-        ? { Authorization: `Bearer ${tokenRef.current}` }
-        : {},
-    }).catch(() => {});
+    if (tokenRef.current) {
+      sendView(postId, tokenRef.current);
+    } else {
+      // Token not ready yet — queue; will be sent when session resolves
+      pendingRef.current.add(postId);
+    }
   }, []);
 
   return (
