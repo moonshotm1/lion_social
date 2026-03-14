@@ -103,13 +103,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ posts: [] });
     }
 
-    // ── Step 3: Fetch posts ──────────────────────────────────────────────
+    // ── Step 3: Fetch posts with inline counts ───────────────────────────
+    // Counts are embedded in the same query via Supabase's relation syntax
+    // so each post always has its own accurate count — no separate batch needed.
     const pageSize = 20;
     let postQuery = supabase
       .from("Post")
       .select(`
         id, caption, imageUrl, type, createdAt, metadata,
-        User!inner (id, username, displayName, avatarUrl)
+        User!inner (id, username, displayName, avatarUrl),
+        likes:Like(count),
+        comments:Comment(count),
+        saves:Save(count),
+        views:PostView(count)
       `)
       .order("createdAt", { ascending: false })
       .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -125,59 +131,22 @@ export async function GET(req: NextRequest) {
     }
     if (!posts || posts.length === 0) return NextResponse.json({ posts: [] });
 
-    const postIds = (posts as any[]).map((p) => p.id);
-
-    // ── Step 4: Batch fetch counts for displayed posts ───────────────────
-    const [
-      { data: likesData, error: likesErr },
-      { data: commentsData, error: commentsErr },
-      { data: savesData, error: savesErr },
-      { data: viewsData },
-    ] = await Promise.all([
-      supabase.from("Like").select("postId").in("postId", postIds),
-      supabase.from("Comment").select("postId").in("postId", postIds),
-      supabase.from("Save").select("postId").in("postId", postIds),
-      // PostView counts unique viewers — falls back to 0 if table doesn't exist yet
-      supabase.from("PostView").select("postId").in("postId", postIds).then((r) => r, () => ({ data: null })),
-    ]);
-
-    if (likesErr) console.error("[feed] Likes count query error:", likesErr.message);
-    if (commentsErr) console.error("[feed] Comments count query error:", commentsErr.message);
-    if (savesErr) console.error("[feed] Saves count query error:", savesErr.message);
-
-    const likesCount: Record<string, number> = {};
-    for (const l of (likesData ?? [])) {
-      likesCount[l.postId] = (likesCount[l.postId] ?? 0) + 1;
-    }
-    const commentsCount: Record<string, number> = {};
-    for (const c of (commentsData ?? [])) {
-      commentsCount[c.postId] = (commentsCount[c.postId] ?? 0) + 1;
-    }
-    const savesCount: Record<string, number> = {};
-    for (const s of (savesData ?? [])) {
-      savesCount[s.postId] = (savesCount[s.postId] ?? 0) + 1;
-    }
-    const viewsCount: Record<string, number> = {};
-    for (const v of ((viewsData as any[]) ?? [])) {
-      viewsCount[v.postId] = (viewsCount[v.postId] ?? 0) + 1;
-    }
-
-    // ── Step 5: Build result ─────────────────────────────────────────────
+    // ── Step 4: Build result ─────────────────────────────────────────────
     const result = (posts as any[]).map((p) => ({
       id: p.id,
       caption: p.caption,
       imageUrl: p.imageUrl ?? null,
       type: p.type,
       createdAt: p.createdAt,
-      // View count = unique viewers from PostView table only (no fallback to old viewCount column)
-      viewCount: viewsCount[p.id] ?? 0,
       metadata: p.metadata ?? {},
       user: p.User ?? { id: "", username: "unknown", avatarUrl: null },
-      likesCount: likesCount[p.id] ?? 0,
-      commentsCount: commentsCount[p.id] ?? 0,
-      savesCount: savesCount[p.id] ?? 0,
-      // User-centric: directly from this user's liked/saved sets
-      isLiked: userLikedPostIds.has(p.id),
+      // Inline counts — each value is [{ count: N }]; Number() coerces string counts
+      likesCount:    Number(p.likes?.[0]?.count    ?? 0),
+      commentsCount: Number(p.comments?.[0]?.count ?? 0),
+      savesCount:    Number(p.saves?.[0]?.count    ?? 0),
+      viewCount:     Number(p.views?.[0]?.count    ?? 0),
+      // User-centric flags from the dedicated liked/saved sets fetched above
+      isLiked:      userLikedPostIds.has(p.id),
       isBookmarked: userSavedPostIds.has(p.id),
     }));
 
