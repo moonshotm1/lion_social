@@ -433,12 +433,9 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const { likedIds, toggleLike } = useLikes();
   const { trackView } = useViews();
 
-  // Debug: confirm like/save counts are arriving from the API
-  console.log('[PostCard] id:', post.id, 'post.likes (likeCount):', post.likes, 'post.favorites (favCount):', post.favorites);
-
   // isLiked is derived from global LikesContext — no local state needed
   const isLiked = likedIds.has(post.id);
-  const [likeCount, setLikeCount] = useState(post.likes);
+  const [likeCount, setLikeCount] = useState(post.likes ?? 0);
   const [isFavorited, setIsFavorited] = useState(post.isBookmarked ?? false);
   const [favCount, setFavCount] = useState(post.favorites ?? 0);
   const [isCopied, setIsCopied] = useState(false);
@@ -446,6 +443,12 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments);
   const [viewCount, setViewCount] = useState(post.views);
+
+  // Sync counts when the parent replaces the post prop (e.g. category change
+  // reuses the same PostCard instance with updated API data). useState initial
+  // value only runs on mount, so we need useEffect to catch prop updates.
+  useEffect(() => { setLikeCount(post.likes ?? 0); }, [post.likes]);
+  useEffect(() => { setFavCount(post.favorites ?? 0); }, [post.favorites]);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCountRef = useRef(0);
   const articleRef = useRef<HTMLElement>(null);

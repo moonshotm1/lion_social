@@ -6,8 +6,20 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 // ── Browser client (for "use client" components) ────────────────────
+// Singleton: reuse the same GoTrueClient instance across the entire app.
+// Creating a new client on every call causes "Multiple GoTrueClient
+// instances" warnings and can desync auth state between listeners.
+let _browserClientSingleton: ReturnType<typeof createBrowserClient> | null = null;
+
 export function createSupabaseBrowserClient() {
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  if (typeof window === "undefined") {
+    // SSR path: no singleton (each request is isolated)
+    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  }
+  if (!_browserClientSingleton) {
+    _browserClientSingleton = createBrowserClient(supabaseUrl, supabaseAnonKey);
+  }
+  return _browserClientSingleton;
 }
 
 // ── Server client (for Server Components, API routes, Route Handlers) ──
