@@ -433,22 +433,38 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const { likedIds, toggleLike } = useLikes();
   const { trackView } = useViews();
 
-  // isLiked is derived from global LikesContext — no local state needed
-  const isLiked = likedIds.has(post.id);
-  const [likeCount, setLikeCount] = useState(post.likes ?? 0);
-  const [isFavorited, setIsFavorited] = useState(post.isBookmarked ?? false);
-  const [favCount, setFavCount] = useState(post.favorites ?? 0);
+  // ── Like state ────────────────────────────────────────────────────────────
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+
+  // Sync liked state from LikesContext (fires when context bootstraps or changes)
+  useEffect(() => {
+    setLiked(likedIds.has(post.id));
+  }, [likedIds, post.id]);
+
+  // Sync like count from API data (fires on mount and when post prop updates)
+  useEffect(() => {
+    setLikeCount(post.likes ?? 0);
+  }, [post.likes]);
+
+  // ── Star/save state ───────────────────────────────────────────────────────
+  const [starred, setStarred] = useState(false);
+  const [starCount, setStarCount] = useState(0);
+
+  useEffect(() => {
+    setStarred(post.isBookmarked ?? false);
+  }, [post.id, post.isBookmarked]);
+
+  useEffect(() => {
+    setStarCount(post.favorites ?? 0);
+  }, [post.favorites]);
+
+  // ── Other UI state ────────────────────────────────────────────────────────
   const [isCopied, setIsCopied] = useState(false);
   const [isAnimatingLike, setIsAnimatingLike] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments);
   const [viewCount, setViewCount] = useState(post.views);
-
-  // Sync counts when the parent replaces the post prop (e.g. category change
-  // reuses the same PostCard instance with updated API data). useState initial
-  // value only runs on mount, so we need useEffect to catch prop updates.
-  useEffect(() => { setLikeCount(post.likes ?? 0); }, [post.likes]);
-  useEffect(() => { setFavCount(post.favorites ?? 0); }, [post.favorites]);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCountRef = useRef(0);
   const articleRef = useRef<HTMLElement>(null);
@@ -489,37 +505,63 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   };
 
   const handleLike = async () => {
-    const wasLiked = likedIds.has(post.id);
+    const prevLiked = liked;
     const prevCount = likeCount;
+    const newLiked = !prevLiked;
+
+    // Optimistic update
+    setLiked(newLiked);
+    setLikeCount(newLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
     setIsAnimatingLike(true);
-    setLikeCount(wasLiked ? prevCount - 1 : prevCount + 1);
-    onLike?.(post.id);
     setTimeout(() => setIsAnimatingLike(false), 300);
+    onLike?.(post.id);
+
+    if (isClientDemoMode) {
+      toggleLike(post.id);
+      return;
+    }
+
     try {
+      // toggleLike calls /api/post/[id]/like (service-role, handles race conditions
+      // + notifications) and reconciles likedIds in context
       const serverLiked = await toggleLike(post.id);
+      // Reconcile count with server truth using the pre-click baseline
       setLikeCount(serverLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
+      // liked state is auto-synced from likedIds via useEffect
     } catch {
+      // Revert optimistic update
+      setLiked(prevLiked);
       setLikeCount(prevCount);
     }
   };
 
   const handleSave = async () => {
-    const wasFavorited = isFavorited;
-    const next = !wasFavorited;
-    setIsFavorited(next);
-    setFavCount((prev) => (next ? prev + 1 : prev - 1));
-    if (!isClientDemoMode) {
-      try {
-        const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
-        const res = await fetch(`/api/post/${post.id}/save`, {
-          method: "POST",
-          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
-        });
-        if (!res.ok) throw new Error();
-      } catch {
-        setIsFavorited(wasFavorited);
-        setFavCount((prev) => (next ? prev - 1 : prev + 1));
-      }
+    const prevStarred = starred;
+    const prevCount = starCount;
+    const newStarred = !prevStarred;
+
+    // Optimistic update
+    setStarred(newStarred);
+    setStarCount(newStarred ? prevCount + 1 : Math.max(0, prevCount - 1));
+
+    if (isClientDemoMode) return;
+
+    try {
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+      const res = await fetch(`/api/post/${post.id}/save`, {
+        method: "POST",
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      if (!res.ok) throw new Error("Save failed");
+      const data = await res.json();
+      const serverSaved = !!data.saved;
+      // Reconcile count with server truth
+      setStarred(serverSaved);
+      setStarCount(serverSaved ? prevCount + 1 : Math.max(0, prevCount - 1));
+    } catch {
+      // Revert
+      setStarred(prevStarred);
+      setStarCount(prevCount);
     }
   };
 
@@ -534,7 +576,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       clickCountRef.current = 0;
       clickTimerRef.current = null;
       if (count >= 2) {
-        if (!isLiked) handleLike();
+        if (!liked) handleLike();
       } else if (!expanded) {
         setViewCount((prev) => prev + 1);
         router.push(`/post/${post.id}`);
@@ -686,14 +728,14 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
           >
             <Heart
               className={`w-5 h-5 transition-all duration-200 ${
-                isLiked
+                liked
                   ? "text-lion-gold fill-lion-gold scale-110"
                   : "text-lion-gray-3 group-hover:text-lion-gold"
               } ${isAnimatingLike ? "animate-scale-in" : ""}`}
             />
             <span
               className={`text-xs font-medium ${
-                isLiked ? "text-lion-gold" : "text-lion-gray-3"
+                liked ? "text-lion-gold" : "text-lion-gray-3"
               }`}
             >
               {formatCount(likeCount)}
@@ -746,17 +788,17 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
           >
             <Star
               className={`w-5 h-5 transition-all duration-200 ${
-                isFavorited
+                starred
                   ? "text-yellow-400 fill-yellow-400 scale-110"
                   : "text-lion-gray-3 group-hover:text-yellow-400"
               }`}
             />
             <span
               className={`text-xs font-medium ${
-                isFavorited ? "text-yellow-400" : "text-lion-gray-3"
+                starred ? "text-yellow-400" : "text-lion-gray-3"
               }`}
             >
-              {formatCount(favCount)}
+              {formatCount(starCount)}
             </span>
           </button>
         </div>
