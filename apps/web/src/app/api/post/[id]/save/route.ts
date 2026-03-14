@@ -39,20 +39,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const { data: existing } = await supabase
+    const { data: existing, error: selectErr } = await supabase
       .from('Save')
       .select('id')
       .eq('userId', dbUser.id)
       .eq('postId', postId)
       .single();
 
+    if (selectErr && selectErr.code !== 'PGRST116') {
+      // PGRST116 = "no rows" — expected when not yet saved
+      console.error('[save] select error:', JSON.stringify(selectErr));
+      return NextResponse.json({ error: selectErr.message }, { status: 500 });
+    }
+
     if (existing) {
-      await supabase.from('Save').delete().eq('id', existing.id);
+      const { error: deleteErr } = await supabase.from('Save').delete().eq('id', existing.id);
+      if (deleteErr) console.error('[save] delete error:', JSON.stringify(deleteErr));
       return NextResponse.json({ saved: false });
     }
 
     const now = new Date().toISOString();
-    await supabase.from('Save').insert({ id: genId(), userId: dbUser.id, postId, createdAt: now });
+    const { error: insertErr } = await supabase
+      .from('Save')
+      .insert({ id: genId(), userId: dbUser.id, postId, createdAt: now });
+    if (insertErr) {
+      console.error('[save] insert error:', JSON.stringify(insertErr));
+      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    }
     return NextResponse.json({ saved: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to toggle save';

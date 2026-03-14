@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .select('id');
 
     if (deleteErr) {
-      console.error('[like] delete error:', deleteErr.message);
+      console.error('[like] delete error:', JSON.stringify(deleteErr));
       return NextResponse.json({ error: deleteErr.message }, { status: 500 });
     }
 
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (insertErr) {
       // 23505 = unique_violation: another request already inserted — still liked
       if (insertErr.code === '23505') return NextResponse.json({ liked: true });
-      console.error('[like] insert error:', insertErr.message);
+      console.error('[like] insert error:', JSON.stringify(insertErr));
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
