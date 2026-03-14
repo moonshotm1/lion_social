@@ -433,6 +433,9 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const { likedIds, toggleLike } = useLikes();
   const { trackView } = useViews();
 
+  // Debug: confirm like/save counts are arriving from the API
+  console.log('[PostCard] id:', post.id, 'post.likes (likeCount):', post.likes, 'post.favorites (favCount):', post.favorites);
+
   // isLiked is derived from global LikesContext — no local state needed
   const isLiked = likedIds.has(post.id);
   const [likeCount, setLikeCount] = useState(post.likes);
