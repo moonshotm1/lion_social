@@ -4,10 +4,6 @@ export const runtime = 'nodejs';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-function genId() {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-}
-
 function getServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,33 +35,34 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const { data: existing, error: selectErr } = await supabase
+    // Delete-first toggle (mirrors like route)
+    const { data: deleted, error: deleteErr } = await supabase
       .from('Save')
-      .select('id')
+      .delete()
       .eq('userId', dbUser.id)
       .eq('postId', postId)
-      .single();
+      .select('id');
 
-    if (selectErr && selectErr.code !== 'PGRST116') {
-      // PGRST116 = "no rows" — expected when not yet saved
-      console.error('[save] select error:', JSON.stringify(selectErr));
-      return NextResponse.json({ error: selectErr.message }, { status: 500 });
+    if (deleteErr) {
+      console.error('[save] delete error:', JSON.stringify(deleteErr));
+      return NextResponse.json({ error: deleteErr.message }, { status: 500 });
     }
 
-    if (existing) {
-      const { error: deleteErr } = await supabase.from('Save').delete().eq('id', existing.id);
-      if (deleteErr) console.error('[save] delete error:', JSON.stringify(deleteErr));
+    if (deleted && deleted.length > 0) {
       return NextResponse.json({ saved: false });
     }
 
-    const now = new Date().toISOString();
+    // Was not saved — insert (let DB supply id + createdAt defaults)
     const { error: insertErr } = await supabase
       .from('Save')
-      .insert({ id: genId(), userId: dbUser.id, postId, createdAt: now });
+      .insert({ userId: dbUser.id, postId });
+
     if (insertErr) {
+      if (insertErr.code === '23505') return NextResponse.json({ saved: true });
       console.error('[save] insert error:', JSON.stringify(insertErr));
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
+
     return NextResponse.json({ saved: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to toggle save';

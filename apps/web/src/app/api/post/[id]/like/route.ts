@@ -58,11 +58,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ liked: false });
     }
 
-    // Was not liked — insert new Like
-    const now = new Date().toISOString();
+    // Was not liked — insert new Like (let DB supply id + createdAt defaults)
     const { error: insertErr } = await supabase
       .from('Like')
-      .insert({ id: genId(), userId: dbUser.id, postId, createdAt: now });
+      .insert({ userId: dbUser.id, postId });
 
     if (insertErr) {
       // 23505 = unique_violation: another request already inserted — still liked
@@ -72,6 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     // Notify post owner (not self)
+    const now = new Date().toISOString();
     const { data: post } = await supabase
       .from('Post')
       .select('userId')

@@ -4,10 +4,6 @@ export const runtime = 'nodejs';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-function genId() {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-}
-
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const supabase = createClient(
@@ -59,7 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const { error: insertErr } = await supabase
       .from('PostView')
-      .insert({ id: genId(), postId, userId: dbUser.id, createdAt: new Date().toISOString() });
+      .insert({ postId, userId: dbUser.id });
 
     if (insertErr) {
       if (insertErr.code === '23505') {
