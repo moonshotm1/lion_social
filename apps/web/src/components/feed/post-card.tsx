@@ -430,7 +430,7 @@ interface PostCardProps {
 
 export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const router = useRouter();
-  const { likedIds, toggleLike } = useLikes();
+  const { likedIds, setLikedId } = useLikes();
   const { trackView } = useViews();
 
   // ── Like state ────────────────────────────────────────────────────────────
@@ -517,17 +517,23 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     onLike?.(post.id);
 
     if (isClientDemoMode) {
-      toggleLike(post.id);
+      setLikedId(post.id, newLiked);
       return;
     }
 
     try {
-      // toggleLike calls /api/post/[id]/like (service-role, handles race conditions
-      // + notifications) and reconciles likedIds in context
-      const serverLiked = await toggleLike(post.id);
-      // Reconcile count with server truth using the pre-click baseline
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+      const res = await fetch(`/api/post/${post.id}/like`, {
+        method: "POST",
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      if (!res.ok) throw new Error("Like request failed");
+      const data = await res.json();
+      const serverLiked = !!data.liked;
+      // Reconcile count with server truth
       setLikeCount(serverLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
-      // liked state is auto-synced from likedIds via useEffect
+      // Sync context — single write, no double-trigger
+      setLikedId(post.id, serverLiked);
     } catch {
       // Revert optimistic update
       setLiked(prevLiked);

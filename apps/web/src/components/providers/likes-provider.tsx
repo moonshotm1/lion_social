@@ -3,17 +3,17 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockPosts } from "@/lib/mock-data";
-import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { createSupabaseBrowserClient } from "@/lib/supabase"; // used only in bootstrap
 
 interface LikesContextValue {
   likedIds: Set<string>;
-  /** Optimistically toggles like state, calls the API, and reconciles. Returns server-confirmed liked state. */
-  toggleLike: (postId: string) => Promise<boolean>;
+  /** Updates the local likedIds Set only — no API call. PostCard owns all writes. */
+  setLikedId: (postId: string, liked: boolean) => void;
 }
 
 const LikesContext = createContext<LikesContextValue>({
   likedIds: new Set(),
-  toggleLike: async () => false,
+  setLikedId: () => {},
 });
 
 export function useLikes() {
@@ -68,61 +68,17 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const toggleLike = useCallback(async (postId: string): Promise<boolean> => {
-    if (isClientDemoMode) {
-      setLikedIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(postId)) next.delete(postId);
-        else next.add(postId);
-        return next;
-      });
-      return !likedIds.has(postId);
-    }
-
-    const wasLiked = likedIds.has(postId);
-
-    // Optimistic update
+  const setLikedId = useCallback((postId: string, liked: boolean) => {
     setLikedIds((prev) => {
       const next = new Set(prev);
-      if (wasLiked) next.delete(postId);
-      else next.add(postId);
+      if (liked) next.add(postId);
+      else next.delete(postId);
       return next;
     });
-
-    try {
-      const supabase = createSupabaseBrowserClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/post/${postId}/like`, {
-        method: "POST",
-        headers: session?.access_token
-          ? { Authorization: `Bearer ${session.access_token}` }
-          : {},
-      });
-      if (!res.ok) throw new Error("Like request failed");
-      const data = await res.json();
-      const serverLiked = !!data.liked;
-      // Reconcile context with server truth
-      setLikedIds((prev) => {
-        const next = new Set(prev);
-        if (serverLiked) next.add(postId);
-        else next.delete(postId);
-        return next;
-      });
-      return serverLiked;
-    } catch {
-      // Revert optimistic update
-      setLikedIds((prev) => {
-        const next = new Set(prev);
-        if (wasLiked) next.add(postId);
-        else next.delete(postId);
-        return next;
-      });
-      throw new Error("Like failed");
-    }
-  }, [likedIds]);
+  }, []);
 
   return (
-    <LikesContext.Provider value={{ likedIds, toggleLike }}>
+    <LikesContext.Provider value={{ likedIds, setLikedId }}>
       {children}
     </LikesContext.Provider>
   );
