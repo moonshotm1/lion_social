@@ -530,8 +530,8 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       if (!res.ok) throw new Error("Like request failed");
       const data = await res.json();
       const serverLiked = !!data.liked;
-      // Reconcile count with server truth
-      setLikeCount(serverLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
+      // Use server count if available, otherwise fall back to optimistic
+      setLikeCount(data.likeCount ?? (serverLiked ? prevCount + 1 : Math.max(0, prevCount - 1)));
       // Sync context — single write, no double-trigger
       setLikedId(post.id, serverLiked);
     } catch {
@@ -561,9 +561,9 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       if (!res.ok) throw new Error("Save failed");
       const data = await res.json();
       const serverSaved = !!data.saved;
-      // Reconcile count with server truth
       setStarred(serverSaved);
-      setStarCount(serverSaved ? prevCount + 1 : Math.max(0, prevCount - 1));
+      // Use server count if available, otherwise fall back to optimistic
+      setStarCount(data.saveCount ?? (serverSaved ? prevCount + 1 : Math.max(0, prevCount - 1)));
     } catch {
       // Revert
       setStarred(prevStarred);

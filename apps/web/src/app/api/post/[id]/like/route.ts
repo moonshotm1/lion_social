@@ -49,7 +49,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (existing) {
       // Already liked — delete it (unlike)
       await supabase.from('Like').delete().eq('id', existing.id);
-      return NextResponse.json({ liked: false });
+      const { count } = await supabase
+        .from('Like')
+        .select('*', { count: 'exact', head: true })
+        .eq('postId', postId);
+      return NextResponse.json({ liked: false, likeCount: count ?? 0 });
     }
 
     // Not liked — insert
@@ -64,13 +68,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    // Notify post owner (not self)
+    // Fetch real count + post owner in parallel
     const now = new Date().toISOString();
-    const { data: post } = await supabase
-      .from('Post')
-      .select('userId')
-      .eq('id', postId)
-      .single();
+    const [{ count }, { data: post }] = await Promise.all([
+      supabase.from('Like').select('*', { count: 'exact', head: true }).eq('postId', postId),
+      supabase.from('Post').select('userId').eq('id', postId).single(),
+    ]);
 
     if (post && post.userId !== dbUser.id) {
       await supabase.from('Notification').insert({
@@ -83,7 +86,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
     }
 
-    return NextResponse.json({ liked: true });
+    return NextResponse.json({ liked: true, likeCount: count ?? 0 });
   } catch (err) {
     console.error('[like] exception:', err instanceof Error ? err.stack : err);
     const message = err instanceof Error ? err.message : 'Failed to toggle like';
