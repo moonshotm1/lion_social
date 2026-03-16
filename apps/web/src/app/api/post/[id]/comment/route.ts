@@ -18,26 +18,18 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
     const { data: comments, error } = await supabase
       .from('Comment')
-      .select('id, content, createdAt, userId')
+      .select('id, content, createdAt, user:User(id, username, avatarUrl)')
       .eq('postId', postId)
       .order('createdAt', { ascending: true });
 
     if (error) throw error;
     if (!comments?.length) return NextResponse.json({ comments: [] });
 
-    const userIds = Array.from(new Set(comments.map((c: any) => c.userId)));
-    const { data: users } = await supabase
-      .from('User')
-      .select('id, username, avatarUrl')
-      .in('id', userIds);
-
-    const userMap = Object.fromEntries((users ?? []).map((u: any) => [u.id, u]));
-
-    const enriched = comments.map((c: any) => ({
+    const enriched = (comments as any[]).map((c) => ({
       id: c.id,
       content: c.content,
       createdAt: c.createdAt,
-      user: userMap[c.userId] ?? { id: c.userId, username: 'unknown', avatarUrl: null },
+      user: c.user ?? { id: '', username: 'unknown', avatarUrl: null },
     }));
 
     return NextResponse.json({ comments: enriched });
