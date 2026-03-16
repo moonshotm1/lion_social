@@ -1,0 +1,98 @@
+import { z } from "zod";
+import { router, publicProcedure, protectedProcedure } from "../trpc";
+
+
+export const likeRouter = router({
+  /**
+   * Toggle a like on a post.
+   * If the user has already liked the post, the like is removed.
+   * If the user has not liked the post, a new like is created.
+   */
+  toggle: protectedProcedure
+    .input(z.object({ postId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const existingLike = await ctx.prisma.like.findUnique({
+        where: {
+          userId_postId: {
+            userId: ctx.userId,
+            postId: input.postId,
+          },
+        },
+      });
+
+      if (existingLike) {
+        await ctx.prisma.like.delete({
+          where: { id: existingLike.id },
+        });
+
+        return { liked: false };
+      }
+
+      const like = await ctx.prisma.like.create({
+        data: {
+          userId: ctx.userId,
+          postId: input.postId,
+        },
+      });
+
+      // Notify post owner (skip if user liked their own post)
+      const post = await ctx.prisma.post.findUnique({
+        where: { id: input.postId },
+        select: { userId: true },
+      });
+      if (post && post.userId !== ctx.userId) {
+        await ctx.prisma.notification.create({
+          data: { userId: post.userId, type: "like", referenceId: `${ctx.userId}:${input.postId}` },
+        });
+      }
+
+      return { liked: true };
+    }),
+
+  /**
+   * Get all likes for a specific post, including user information.
+   */
+  byPost: publicProcedure
+    .input(z.object({ postId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const likes = await ctx.prisma.like.findMany({
+        where: { postId: input.postId },
+        include: {
+          user: {
+            select: { id: true, username: true, avatarUrl: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return likes;
+    }),
+
+  /**
+   * Get all posts liked by a specific user.
+   */
+  byUser: protectedProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const likes = await ctx.prisma.like.findMany({
+        where: { userId: input.userId },
+        orderBy: { createdAt: "desc" },
+        include: {
+          post: {
+            include: {
+              user: true,
+              likes: ctx.userId
+                ? { where: { userId: ctx.userId }, select: { id: true } }
+                : false,
+              saves: ctx.userId
+                ? { where: { userId: ctx.userId }, select: { id: true } }
+                : false,
+              _count: { select: { likes: true, comments: true, saves: true } },
+            },
+          },
+        },
+      });
+
+      return likes.map((l: { post: any }) => l.post);
+    }),
+});
