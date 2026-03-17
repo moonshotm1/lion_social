@@ -434,30 +434,17 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const { trackView } = useViews();
 
   // ── Like state ────────────────────────────────────────────────────────────
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
+  const [liked, setLiked] = useState(likedIds.has(post.id));
+  const [likeCount, setLikeCount] = useState(post.likes ?? 0);
 
-  // Sync liked state from LikesContext (fires when context bootstraps or changes)
+  // Sync liked state when LikesContext bootstraps after mount
   useEffect(() => {
     setLiked(likedIds.has(post.id));
   }, [likedIds, post.id]);
 
-  // Sync like count from API data (fires on mount and when post prop updates)
-  useEffect(() => {
-    setLikeCount(post.likes ?? 0);
-  }, [post.likes]);
-
   // ── Star/save state ───────────────────────────────────────────────────────
-  const [starred, setStarred] = useState(false);
-  const [starCount, setStarCount] = useState(0);
-
-  useEffect(() => {
-    setStarred(post.isBookmarked ?? false);
-  }, [post.id, post.isBookmarked]);
-
-  useEffect(() => {
-    setStarCount(post.favorites ?? 0);
-  }, [post.favorites]);
+  const [starred, setStarred] = useState(post.isBookmarked ?? false);
+  const [starCount, setStarCount] = useState(post.favorites ?? 0);
 
   // ── Other UI state ────────────────────────────────────────────────────────
   const [isCopied, setIsCopied] = useState(false);
