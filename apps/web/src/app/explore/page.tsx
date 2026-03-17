@@ -132,11 +132,27 @@ export default function ExplorePage() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  // undefined = not yet resolved, null = unauthenticated, string = access token
+  const [authToken, setAuthToken] = useState<string | null | undefined>(undefined);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
 
+  // Resolve auth token once on mount — wait for session before first fetch
+  // so the feed request always includes the Authorization header and isLiked is correct.
+  useEffect(() => {
+    if (isClientDemoMode) { setAuthToken(null); return; }
+    const supabase = createSupabaseBrowserClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthToken(session?.access_token ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthToken(session?.access_token ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const loadPosts = useCallback(
-    async (pageNum: number, resetList: boolean) => {
+    async (pageNum: number, resetList: boolean, token: string | null) => {
       if (loadingRef.current) return;
       loadingRef.current = true;
       setIsLoading(true);
@@ -150,14 +166,10 @@ export default function ExplorePage() {
           setHasMore(false);
           return;
         }
-        const supabase = createSupabaseBrowserClient();
-        const { data: { session } } = await supabase.auth.getSession();
         const params = new URLSearchParams({ tab: "explore", page: String(pageNum) });
         if (activeCategory !== "all") params.set("type", activeCategory);
         const res = await fetch(`/api/feed?${params}`, {
-          headers: session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : {},
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
         const newPosts = (data.posts ?? []).map(transformPost);
@@ -173,17 +185,18 @@ export default function ExplorePage() {
     [activeCategory]
   );
 
-  // Initial load + reload on category change
+  // Initial load + reload on category change — wait for auth to resolve first
   useEffect(() => {
+    if (authToken === undefined) return;
     setPage(0);
-    loadPosts(0, true);
-  }, [activeCategory]); // eslint-disable-line react-hooks/exhaustive-deps
+    loadPosts(0, true, authToken);
+  }, [activeCategory, authToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load next page when page number increments (not on first render)
   const isFirstPage = useRef(true);
   useEffect(() => {
     if (isFirstPage.current) { isFirstPage.current = false; return; }
-    if (page > 0) loadPosts(page, false);
+    if (page > 0) loadPosts(page, false, authToken ?? null);
   }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // IntersectionObserver for infinite scroll
