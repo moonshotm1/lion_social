@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       await supabase.from('Like').delete().eq('id', existing.id);
       const { count } = await supabase
         .from('Like')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .eq('postId', postId);
       return NextResponse.json({ liked: false, likeCount: count ?? 0 });
     }
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Fetch real count + post owner in parallel
     const now = new Date().toISOString();
     const [{ count }, { data: post }] = await Promise.all([
-      supabase.from('Like').select('*', { count: 'exact', head: true }).eq('postId', postId),
+      supabase.from('Like').select('id', { count: 'exact' }).eq('postId', postId),
       supabase.from('Post').select('userId').eq('id', postId).single(),
     ]);
 

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       await supabase.from('Save').delete().eq('id', existing.id);
       const { count } = await supabase
         .from('Save')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .eq('postId', postId);
       return NextResponse.json({ saved: false, saveCount: count ?? 0 });
     }
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const { count } = await supabase
       .from('Save')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact' })
       .eq('postId', postId);
 
     return NextResponse.json({ saved: true, saveCount: count ?? 0 });
