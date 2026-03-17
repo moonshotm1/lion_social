@@ -434,7 +434,9 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const { trackView } = useViews();
 
   // ── Like state ────────────────────────────────────────────────────────────
-  const [liked, setLiked] = useState(likedIds.has(post.id));
+  // post.isLiked comes from the feed route (server-computed) — no async delay.
+  // likedIds.has() catches the case where context is already bootstrapped.
+  const [liked, setLiked] = useState(post.isLiked || likedIds.has(post.id));
   const [likeCount, setLikeCount] = useState(post.likes ?? 0);
 
   // Sync liked state when LikesContext bootstraps after mount
