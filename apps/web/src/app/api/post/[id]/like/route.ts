@@ -49,11 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (existing) {
       // Already liked — delete it (unlike)
       await supabase.from('Like').delete().eq('id', existing.id);
-      const { count } = await supabase
-        .from('Like')
-        .select('id', { count: 'exact' })
-        .eq('postId', postId);
-      return NextResponse.json({ liked: false, likeCount: count ?? 0 });
+      return NextResponse.json({ liked: false });
     }
 
     // Not liked — insert
@@ -68,25 +64,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    // Fetch real count + post owner in parallel
+    // Notify post owner (fire-and-forget, don't block response)
     const now = new Date().toISOString();
-    const [{ count }, { data: post }] = await Promise.all([
-      supabase.from('Like').select('id', { count: 'exact' }).eq('postId', postId),
-      supabase.from('Post').select('userId').eq('id', postId).single(),
-    ]);
+    supabase.from('Post').select('userId').eq('id', postId).single().then(({ data: post }) => {
+      if (post && post.userId !== dbUser.id) {
+        supabase.from('Notification').insert({
+          id: genId(),
+          userId: post.userId,
+          type: 'like',
+          referenceId: `${dbUser.id}:${postId}`,
+          read: false,
+          createdAt: now,
+        });
+      }
+    });
 
-    if (post && post.userId !== dbUser.id) {
-      await supabase.from('Notification').insert({
-        id: genId(),
-        userId: post.userId,
-        type: 'like',
-        referenceId: `${dbUser.id}:${postId}`,
-        read: false,
-        createdAt: now,
-      });
-    }
-
-    return NextResponse.json({ liked: true, likeCount: count ?? 0 });
+    return NextResponse.json({ liked: true });
   } catch (err) {
     console.error('[like] exception:', err instanceof Error ? err.stack : err);
     const message = err instanceof Error ? err.message : 'Failed to toggle like';

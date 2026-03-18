@@ -45,11 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (existing) {
       // Already saved — delete it (unsave)
       await supabase.from('Save').delete().eq('id', existing.id);
-      const { count } = await supabase
-        .from('Save')
-        .select('id', { count: 'exact' })
-        .eq('postId', postId);
-      return NextResponse.json({ saved: false, saveCount: count ?? 0 });
+      return NextResponse.json({ saved: false });
     }
 
     // Not saved — insert
@@ -63,12 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    const { count } = await supabase
-      .from('Save')
-      .select('id', { count: 'exact' })
-      .eq('postId', postId);
-
-    return NextResponse.json({ saved: true, saveCount: count ?? 0 });
+    return NextResponse.json({ saved: true });
   } catch (err) {
     console.error('[save] exception:', err instanceof Error ? err.stack : err);
     const message = err instanceof Error ? err.message : 'Failed to toggle save';
