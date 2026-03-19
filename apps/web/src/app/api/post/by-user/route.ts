@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     // Fetch user data
     const { data: user } = await supabase
       .from('User')
-      .select('id, username, avatarUrl, bio')
+      .select('id, username, displayName, avatarUrl, bio')
       .eq('id', userId)
       .single()
 

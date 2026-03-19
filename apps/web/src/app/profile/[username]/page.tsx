@@ -310,7 +310,8 @@ export default function ProfilePage({
           </div>
           <div className="h-8 w-px bg-lion-gold/10" />
           <button
-            className="text-center hover:opacity-80 transition-opacity active:scale-95"
+            className="text-center hover:opacity-80 transition-opacity active:scale-95 disabled:opacity-40"
+            disabled={!profileUser}
             onClick={() => { setConnectionsTab("followers"); setShowConnections(true); }}
           >
             <p className="text-lg font-bold text-lion-white">
@@ -320,7 +321,8 @@ export default function ProfilePage({
           </button>
           <div className="h-8 w-px bg-lion-gold/10" />
           <button
-            className="text-center hover:opacity-80 transition-opacity active:scale-95"
+            className="text-center hover:opacity-80 transition-opacity active:scale-95 disabled:opacity-40"
+            disabled={!profileUser}
             onClick={() => { setConnectionsTab("following"); setShowConnections(true); }}
           >
             <p className="text-lg font-bold text-lion-white">
