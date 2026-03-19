@@ -15,6 +15,7 @@ import {
   Copy,
   Check,
   Ticket,
+  LogOut,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUserProfile } from "@/hooks/use-user-profile";
@@ -39,6 +40,7 @@ export default function ProfilePage({
   const [followersCount, setFollowersCount] = useState(0);
   const [showConnections, setShowConnections] = useState(false);
   const [connectionsTab, setConnectionsTab] = useState<"followers" | "following">("followers");
+  const [showMenu, setShowMenu] = useState(false);
 
   // Resolve the "me" alias to the current user's real username
   const { user: currentUser, isLoading: currentUserLoading } = useCurrentUser();
@@ -148,6 +150,13 @@ export default function ProfilePage({
     }
   };
 
+  const handleSignOut = async () => {
+    setShowMenu(false);
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    router.push("/auth/login");
+  };
+
   const handleCopyCode = () => {
     if (!inviteCode) return;
     navigator.clipboard.writeText(inviteCode).then(() => {
@@ -217,9 +226,36 @@ export default function ProfilePage({
             </p>
           </div>
         </div>
-        <button className="p-2 rounded-xl text-lion-gray-3 hover:text-lion-white hover:bg-lion-dark-3 transition-all duration-200">
-          <MoreHorizontal className="w-5 h-5" />
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowMenu((v) => !v)}
+            className="p-2 rounded-xl text-lion-gray-3 hover:text-lion-white hover:bg-lion-dark-3 transition-all duration-200"
+          >
+            <MoreHorizontal className="w-5 h-5" />
+          </button>
+
+          {showMenu && (
+            <>
+              {/* Backdrop */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowMenu(false)}
+              />
+              {/* Dropdown */}
+              <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-xl bg-lion-dark-2 border border-lion-gold/15 shadow-xl overflow-hidden">
+                {isOwnProfile && (
+                  <button
+                    onClick={handleSignOut}
+                    className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-red-400 hover:bg-red-400/10 transition-colors duration-150"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign out
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Profile Header */}
