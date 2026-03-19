@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Check, AlertCircle, Loader2, Ticket, X } from "lucide-react";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 interface UserProfile {
   id: string;
@@ -54,15 +55,17 @@ export default function EditProfilePage() {
 
   // ── Load profile on mount ──
   useEffect(() => {
-    fetch("/api/profile")
-      .then(async (res) => {
+    async function loadProfile() {
+      try {
+        const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+        const headers: Record<string, string> = {};
+        if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+        const res = await fetch("/api/profile", { headers });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           throw new Error(body.error ?? "Failed to load profile");
         }
-        return res.json() as Promise<UserProfile>;
-      })
-      .then((data) => {
+        const data: UserProfile = await res.json();
         setProfile(data);
         setDisplayName(data.displayName ?? "");
         setUsername(data.username);
@@ -70,11 +73,12 @@ export default function EditProfilePage() {
         setAvatarPreview(data.avatarUrl ?? null);
         setCurrentInviteCode(data.inviteCode ?? null);
         setIsLoading(false);
-      })
-      .catch((err) => {
-        setLoadError(err.message);
+      } catch (err: unknown) {
+        setLoadError(err instanceof Error ? err.message : "Failed to load profile");
         setIsLoading(false);
-      });
+      }
+    }
+    loadProfile();
   }, []);
 
   // ── Username format validation ──
@@ -236,9 +240,13 @@ export default function EditProfilePage() {
       if (bio !== (profile.bio ?? "")) payload.bio = bio;
       if (newAvatarUrl) payload.avatarUrl = newAvatarUrl;
 
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+
       const res = await fetch("/api/profile", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
       });
       const body = await res.json().catch(() => ({}));

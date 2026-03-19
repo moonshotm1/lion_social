@@ -15,14 +15,14 @@ interface UseUserProfileResult {
   error: unknown;
 }
 
-function useUserProfileDemo(username: string): UseUserProfileResult {
+function useUserProfileDemo(username: string, _refreshKey?: number): UseUserProfileResult {
   const user =
     mockUsers.find((u) => u.username === username) ?? mockUsers[0];
   const posts = mockPosts.filter((p) => p.author.id === user.id);
   return { user, posts, isFollowing: false, isLoading: false, error: null };
 }
 
-function useUserProfileReal(username: string): UseUserProfileResult {
+function useUserProfileReal(username: string, refreshKey?: number): UseUserProfileResult {
   const [user, setUser] = useState<MockUser | null>(null);
   const [posts, setPosts] = useState<MockPost[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -32,49 +32,63 @@ function useUserProfileReal(username: string): UseUserProfileResult {
   useEffect(() => {
     if (!username) return;
 
+    let cancelled = false;
+
     setIsLoading(true);
     setUser(null);
     setPosts([]);
     setIsFollowing(false);
     setError(null);
 
-    // Send auth token so by-username can return isFollowing for the viewer
-    createSupabaseBrowserClient()
-      .auth.getSession()
-      .then(({ data: { session } }) => {
+    async function load() {
+      try {
+        const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
         const headers: Record<string, string> = {};
-        if (session?.access_token) {
-          headers["Authorization"] = `Bearer ${session.access_token}`;
-        }
+        if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
 
-        return fetch(
+        // 1. Fetch user profile
+        const userRes = await fetch(
           `/api/user/by-username?username=${encodeURIComponent(username)}`,
           { headers }
         );
-      })
-      .then(async (res) => {
-        const userData = await res.json();
-        if (!res.ok) throw new Error(userData.error ?? "User not found");
+        const userData = await userRes.json();
+        if (!userRes.ok) throw new Error(userData.error ?? "User not found");
+        if (cancelled) return;
 
         setUser(transformUser(userData));
         setIsFollowing(!!userData.isFollowing);
 
-        // Fetch user's posts
-        return fetch(`/api/post/by-user?userId=${encodeURIComponent(userData.id)}`);
-      })
-      .then(async (res) => {
-        if (!res) return;
-        const postsData = await res.json();
-        if (!res.ok) throw new Error(postsData.error ?? "Failed to fetch posts");
-        setPosts((postsData.posts ?? []).map(transformPost));
+        // 2. Fetch user's posts
+        const postsRes = await fetch(
+          `/api/post/by-user?userId=${encodeURIComponent(userData.id)}`
+        );
+        const postsData = await postsRes.json();
+        if (!postsRes.ok) throw new Error(postsData.error ?? "Failed to fetch posts");
+        if (cancelled) return;
+
+        // Transform each post individually so one bad post can't kill the whole list
+        const transformed: MockPost[] = [];
+        for (const p of postsData.posts ?? []) {
+          try {
+            transformed.push(transformPost(p));
+          } catch (e) {
+            console.warn("[useUserProfile] skipping malformed post:", p?.id, e);
+          }
+        }
+
+        setPosts(transformed);
         setIsLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
+        if (cancelled) return;
         console.error("[useUserProfile] Error:", err);
         setError(err);
         setIsLoading(false);
-      });
-  }, [username]);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [username, refreshKey]); // refreshKey triggers re-fetch (e.g., on page visibility change)
 
   return { user, posts, isFollowing, isLoading, error };
 }

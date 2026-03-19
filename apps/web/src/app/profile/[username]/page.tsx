@@ -55,7 +55,17 @@ export default function ProfilePage({
   const resolvedUsername =
     params.username === "me" ? (currentUser?.username ?? "") : params.username;
 
-  const { user: profileUser, posts: userPosts, isFollowing: profileIsFollowing, isLoading } = useUserProfile(resolvedUsername);
+  // refreshKey increments when the page regains visibility, forcing counts to re-fetch
+  const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setRefreshKey((k) => k + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  const { user: profileUser, posts: userPosts, isFollowing: profileIsFollowing, isLoading } = useUserProfile(resolvedUsername, refreshKey);
 
   const isOwnProfile =
     !!currentUser &&
