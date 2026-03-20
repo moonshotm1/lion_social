@@ -457,6 +457,20 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCountRef = useRef(0);
   const articleRef = useRef<HTMLElement>(null);
+  // Guards to avoid overwriting optimistic counts during in-flight requests
+  const pendingLikeRef = useRef(false);
+  const pendingStarRef = useRef(false);
+
+  // Sync counts when feed refreshes in background (30s poll / visibilitychange)
+  useEffect(() => {
+    if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);
+  }, [post.likes]);
+  useEffect(() => {
+    if (!pendingStarRef.current) setStarCount(post.favorites ?? 0);
+  }, [post.favorites]);
+  useEffect(() => {
+    setCommentCount(post.comments);
+  }, [post.comments]);
 
   // Track view via IntersectionObserver — only fires when post is actually visible,
   // and ViewsProvider will queue the request if the auth token isn't ready yet.
@@ -499,6 +513,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     const newLiked = !prevLiked;
 
     // Optimistic update
+    pendingLikeRef.current = true;
     setLiked(newLiked);
     setLikeCount(newLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
     setIsAnimatingLike(true);
@@ -507,6 +522,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
 
     if (isClientDemoMode) {
       setLikedId(post.id, newLiked);
+      pendingLikeRef.current = false;
       return;
     }
 
@@ -530,6 +546,8 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       // Revert optimistic update
       setLiked(prevLiked);
       setLikeCount(prevCount);
+    } finally {
+      pendingLikeRef.current = false;
     }
   };
 
@@ -539,10 +557,14 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     const newStarred = !prevStarred;
 
     // Optimistic update
+    pendingStarRef.current = true;
     setStarred(newStarred);
     setStarCount(newStarred ? prevCount + 1 : Math.max(0, prevCount - 1));
 
-    if (isClientDemoMode) return;
+    if (isClientDemoMode) {
+      pendingStarRef.current = false;
+      return;
+    }
 
     try {
       const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
@@ -562,6 +584,8 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       // Revert
       setStarred(prevStarred);
       setStarCount(prevCount);
+    } finally {
+      pendingStarRef.current = false;
     }
   };
 

@@ -69,8 +69,8 @@ function useFeedReal(
 
     let cancelled = false;
 
-    async function load() {
-      setIsLoading(true);
+    async function load(background = false) {
+      if (!background) setIsLoading(true);
       try {
         const supabase = createSupabaseBrowserClient();
         const { data: { session } } = await supabase.auth.getSession();
@@ -100,8 +100,22 @@ function useFeedReal(
       }
     }
 
-    load();
-    return () => { cancelled = true; };
+    load(false);
+
+    // Refresh when tab regains focus
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !cancelled) load(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    // Poll every 30s to keep counts fresh
+    const interval = setInterval(() => { if (!cancelled) load(true); }, 30000);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(interval);
+    };
   }, [tab, filter, authUserId]);
 
   return {
