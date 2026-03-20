@@ -34,13 +34,15 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
 
     let cancelled = false;
 
-    setIsLoading(true);
-    setUser(null);
-    setPosts([]);
-    setIsFollowing(false);
-    setError(null);
+    async function load(background = false) {
+      if (!background) {
+        setIsLoading(true);
+        setUser(null);
+        setPosts([]);
+        setIsFollowing(false);
+        setError(null);
+      }
 
-    async function load() {
       try {
         const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
         const headers: Record<string, string> = {};
@@ -58,25 +60,26 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
         setUser(transformUser(userData));
         setIsFollowing(!!userData.isFollowing);
 
-        // 2. Fetch user's posts
-        const postsRes = await fetch(
-          `/api/post/by-user?userId=${encodeURIComponent(userData.id)}`
-        );
-        const postsData = await postsRes.json();
-        if (!postsRes.ok) throw new Error(postsData.error ?? "Failed to fetch posts");
-        if (cancelled) return;
+        // 2. Fetch user's posts (skip on background refresh — counts update, posts rarely change)
+        if (!background) {
+          const postsRes = await fetch(
+            `/api/post/by-user?userId=${encodeURIComponent(userData.id)}`
+          );
+          const postsData = await postsRes.json();
+          if (!postsRes.ok) throw new Error(postsData.error ?? "Failed to fetch posts");
+          if (cancelled) return;
 
-        // Transform each post individually so one bad post can't kill the whole list
-        const transformed: MockPost[] = [];
-        for (const p of postsData.posts ?? []) {
-          try {
-            transformed.push(transformPost(p));
-          } catch (e) {
-            console.warn("[useUserProfile] skipping malformed post:", p?.id, e);
+          const transformed: MockPost[] = [];
+          for (const p of postsData.posts ?? []) {
+            try {
+              transformed.push(transformPost(p));
+            } catch (e) {
+              console.warn("[useUserProfile] skipping malformed post:", p?.id, e);
+            }
           }
+          setPosts(transformed);
         }
 
-        setPosts(transformed);
         setIsLoading(false);
       } catch (err) {
         if (cancelled) return;
@@ -86,9 +89,16 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
       }
     }
 
-    load();
-    return () => { cancelled = true; };
-  }, [username, refreshKey]); // refreshKey triggers re-fetch (e.g., on page visibility change)
+    load(false);
+
+    // Poll follower/following counts every 30s silently
+    const interval = setInterval(() => { if (!cancelled) load(true); }, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [username, refreshKey]); // refreshKey triggers a full re-fetch
 
   return { user, posts, isFollowing, isLoading, error };
 }

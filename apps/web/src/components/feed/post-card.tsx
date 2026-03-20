@@ -456,13 +456,18 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const pendingLikeRef = useRef(false);
   const pendingStarRef = useRef(false);
 
-  // Sync liked/starred state and counts when LikesContext bootstraps or feed re-fetches
+  // Sync liked state when LikesContext bootstraps or server isLiked changes.
+  // Kept SEPARATE from the count sync so that setLikedId() calls (after user action)
+  // don't trigger a count reset back to the stale prop value.
   useEffect(() => {
     if (!pendingLikeRef.current) {
       setLiked(post.isLiked || likedIds.has(post.id));
-      setLikeCount(post.likes ?? 0);
     }
-  }, [likedIds, post.id, post.isLiked, post.likes]);
+  }, [likedIds, post.id, post.isLiked]);
+  // Sync counts only from feed polls — not tied to likedIds changes
+  useEffect(() => {
+    if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);
+  }, [post.likes]);
   useEffect(() => {
     if (!pendingStarRef.current) {
       setStarred(post.isBookmarked ?? false);

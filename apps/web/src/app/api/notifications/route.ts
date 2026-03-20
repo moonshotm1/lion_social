@@ -41,12 +41,14 @@ export async function GET() {
       notifications.map(n => n.referenceId.split(':')[0])
     ));
 
-    const { data: actors } = await supabase
-      .from('User')
-      .select('id, username, avatarUrl')
-      .in('id', actorIds);
+    const [{ data: actors }, { data: myFollows }] = await Promise.all([
+      supabase.from('User').select('id, username, avatarUrl').in('id', actorIds),
+      // Which of these actors does the current user already follow?
+      supabase.from('Follow').select('followingId').eq('followerId', dbUser.id).in('followingId', actorIds),
+    ]);
 
     const actorMap = Object.fromEntries((actors ?? []).map(a => [a.id, a]));
+    const alreadyFollowing = new Set((myFollows ?? []).map((f: any) => f.followingId));
 
     const enriched = notifications.map(n => {
       const [actorId, postId] = n.referenceId.split(':');
@@ -64,6 +66,7 @@ export async function GET() {
         createdAt: n.createdAt,
         message,
         actor,
+        isFollowingActor: alreadyFollowing.has(actorId),
       };
     });
 

@@ -33,7 +33,7 @@ const notificationColors: Record<MockNotification["type"], string> = {
 };
 
 export default function NotificationsPage() {
-  const { notifications, isLoading, markRead, markAllRead } = useNotifications();
+  const { notifications, isLoading, markRead, markAllRead, initialFollowingIds } = useNotifications();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -50,6 +50,13 @@ export default function NotificationsPage() {
   // followingSet: actor IDs we are currently following back
   // loadingSet: actor IDs whose follow request is in-flight
   const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
+
+  // Seed followingSet once we know who the current user already follows
+  useEffect(() => {
+    if (initialFollowingIds.size > 0) {
+      setFollowingSet(initialFollowingIds);
+    }
+  }, [initialFollowingIds]);
   const [followLoadingSet, setFollowLoadingSet] = useState<Set<string>>(new Set());
 
   const handleFollowBack = useCallback(async (e: React.MouseEvent, actorId: string) => {
