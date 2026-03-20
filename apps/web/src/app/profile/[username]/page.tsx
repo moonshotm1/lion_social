@@ -16,6 +16,7 @@ import {
   Check,
   Ticket,
   LogOut,
+  Camera,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUserProfile } from "@/hooks/use-user-profile";
@@ -278,14 +279,24 @@ export default function ProfilePage({
 
         {/* Avatar */}
         <div className="px-4 -mt-12 relative z-10">
-          <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-lion-black bg-lion-dark-2">
-            <Image
-              src={user.avatar}
-              alt={user.displayName}
-              width={96}
-              height={96}
-              className="w-full h-full object-cover"
-            />
+          <div className="relative w-24 h-24 inline-block">
+            <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-lion-black bg-lion-dark-2">
+              <Image
+                src={user.avatar}
+                alt={user.displayName}
+                width={96}
+                height={96}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            {isOwnProfile && (
+              <Link
+                href="/profile/edit"
+                className="absolute inset-0 rounded-full flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-200"
+              >
+                <Camera className="w-6 h-6 text-white" />
+              </Link>
+            )}
           </div>
         </div>
       </div>

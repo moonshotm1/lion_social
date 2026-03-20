@@ -439,11 +439,6 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const [liked, setLiked] = useState(post.isLiked || likedIds.has(post.id));
   const [likeCount, setLikeCount] = useState(post.likes ?? 0);
 
-  // Sync liked state when LikesContext bootstraps after mount
-  useEffect(() => {
-    setLiked(likedIds.has(post.id));
-  }, [likedIds, post.id]);
-
   // ── Star/save state ───────────────────────────────────────────────────────
   const [starred, setStarred] = useState(post.isBookmarked ?? false);
   const [starCount, setStarCount] = useState(post.favorites ?? 0);
@@ -461,13 +456,19 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const pendingLikeRef = useRef(false);
   const pendingStarRef = useRef(false);
 
-  // Sync counts when feed refreshes in background (30s poll / visibilitychange)
+  // Sync liked/starred state and counts when LikesContext bootstraps or feed re-fetches
   useEffect(() => {
-    if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);
-  }, [post.likes]);
+    if (!pendingLikeRef.current) {
+      setLiked(post.isLiked || likedIds.has(post.id));
+      setLikeCount(post.likes ?? 0);
+    }
+  }, [likedIds, post.id, post.isLiked, post.likes]);
   useEffect(() => {
-    if (!pendingStarRef.current) setStarCount(post.favorites ?? 0);
-  }, [post.favorites]);
+    if (!pendingStarRef.current) {
+      setStarred(post.isBookmarked ?? false);
+      setStarCount(post.favorites ?? 0);
+    }
+  }, [post.isBookmarked, post.favorites]);
   useEffect(() => {
     setCommentCount(post.comments);
   }, [post.comments]);

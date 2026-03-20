@@ -67,7 +67,16 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ notifications: enriched });
+    // Deduplicate follow notifications: only show the most recent one per actor
+    const seen = new Set<string>();
+    const deduped = enriched.filter(n => {
+      if (n.type !== 'follow') return true;
+      if (seen.has(n.actor.id)) return false;
+      seen.add(n.actor.id);
+      return true;
+    });
+
+    return NextResponse.json({ notifications: deduped });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch notifications';
     console.error('[notifications] Error:', message);
