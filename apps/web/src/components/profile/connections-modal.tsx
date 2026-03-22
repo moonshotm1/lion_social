@@ -37,6 +37,9 @@ export function ConnectionsModal({
   const [users, setUsers] = useState<ConnectionUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState<Set<string>>(new Set());
+  // Local count state so follow/unfollow actions immediately reflect in tab counts
+  const [localFollowersCount, setLocalFollowersCount] = useState(followersCount);
+  const [localFollowingCount, setLocalFollowingCount] = useState(followingCount);
 
   const fetchConnections = useCallback(async (type: ConnectionType) => {
     setIsLoading(true);
@@ -70,10 +73,11 @@ export function ConnectionsModal({
     setFollowLoading((prev) => new Set(prev).add(targetUser.id));
 
     const willFollow = !targetUser.isFollowing;
-    // Optimistic update
+    // Optimistic update — update list state and following count
     setUsers((prev) =>
       prev.map((u) => u.id === targetUser.id ? { ...u, isFollowing: willFollow } : u)
     );
+    setLocalFollowingCount((c) => willFollow ? c + 1 : Math.max(0, c - 1));
 
     try {
       const supabase = createSupabaseBrowserClient();
@@ -93,11 +97,17 @@ export function ConnectionsModal({
       setUsers((prev) =>
         prev.map((u) => u.id === targetUser.id ? { ...u, isFollowing: serverFollowing } : u)
       );
+      // Update local following count based on server-confirmed state
+      if (serverFollowing !== willFollow) {
+        // Server corrected our optimistic guess — adjust accordingly
+        setLocalFollowingCount((c) => serverFollowing ? c + 1 : Math.max(0, c - 1));
+      }
     } catch {
-      // Revert
+      // Revert follow state and count
       setUsers((prev) =>
         prev.map((u) => u.id === targetUser.id ? { ...u, isFollowing: !willFollow } : u)
       );
+      setLocalFollowingCount((c) => willFollow ? Math.max(0, c - 1) : c + 1);
     } finally {
       setFollowLoading((prev) => {
         const next = new Set(prev);
@@ -136,7 +146,7 @@ export function ConnectionsModal({
         {/* Tabs */}
         <div className="flex shrink-0 border-b border-lion-gold/10">
           {(["followers", "following"] as const).map((tab) => {
-            const count = tab === "followers" ? followersCount : followingCount;
+            const count = tab === "followers" ? localFollowersCount : localFollowingCount;
             const isActive = activeTab === tab;
             return (
               <button

@@ -540,7 +540,11 @@ export default function ProfilePage({
           initialTab={connectionsTab}
           followersCount={followersCount}
           followingCount={user.following}
-          onClose={() => setShowConnections(false)}
+          onClose={() => {
+            setShowConnections(false);
+            // Trigger a profile refresh so counts are accurate after follow/unfollow in modal
+            setTimeout(() => setRefreshKey((k) => k + 1), 500);
+          }}
         />
       )}
     </div>

@@ -92,8 +92,8 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
 
     load(false);
 
-    // Poll follower/following counts every 30s silently
-    const interval = setInterval(() => { if (!cancelled) load(true); }, 30000);
+    // Poll follower/following counts every 10s silently
+    const interval = setInterval(() => { if (!cancelled) load(true); }, 10000);
 
     return () => {
       cancelled = true;
