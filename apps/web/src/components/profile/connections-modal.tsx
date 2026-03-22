@@ -11,6 +11,7 @@ type ConnectionType = "followers" | "following";
 interface ConnectionUser {
   id: string;
   username: string;
+  displayName: string;
   avatarUrl: string | null;
   bio: string;
   isFollowing: boolean;
@@ -39,6 +40,7 @@ export function ConnectionsModal({
 
   const fetchConnections = useCallback(async (type: ConnectionType) => {
     setIsLoading(true);
+    setUsers([]);
     try {
       const supabase = createSupabaseBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
@@ -53,7 +55,7 @@ export function ConnectionsModal({
       const data = await res.json();
       if (res.ok) setUsers(data.users ?? []);
     } catch {
-      // keep empty
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -195,11 +197,9 @@ export function ConnectionsModal({
                     className="flex-1 min-w-0"
                   >
                     <p className="text-sm font-semibold text-lion-white truncate">
-                      @{u.username}
+                      {u.displayName || u.username}
                     </p>
-                    {u.bio && (
-                      <p className="text-xs text-lion-gray-3 truncate">{u.bio}</p>
-                    )}
+                    <p className="text-xs text-lion-gray-3 truncate">@{u.username}</p>
                   </Link>
 
                   {!u.isSelf && (
