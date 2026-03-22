@@ -10,6 +10,8 @@ interface UseNotificationsResult {
   isLoading: boolean;
   markRead: (id: string) => void;
   markAllRead: () => void;
+  /** Set of actor user IDs that the current user is already following */
+  initialFollowingIds: Set<string>;
 }
 
 function useNotificationsDemo(): UseNotificationsResult {
@@ -19,6 +21,7 @@ function useNotificationsDemo(): UseNotificationsResult {
   return {
     notifications,
     isLoading: false,
+    initialFollowingIds: new Set(),
     markRead: (id: string) => {
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, read: true } : n))
@@ -33,6 +36,7 @@ function useNotificationsDemo(): UseNotificationsResult {
 function useNotificationsReal(): UseNotificationsResult {
   const [notifications, setNotifications] = useState<MockNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [initialFollowingIds, setInitialFollowingIds] = useState<Set<string>>(new Set());
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -61,6 +65,13 @@ function useNotificationsReal(): UseNotificationsResult {
         })
       );
       setNotifications(items);
+      // Seed the following set from server-resolved isFollowingActor
+      const alreadyFollowing = new Set<string>(
+        (data.notifications ?? [])
+          .filter((n: any) => n.isFollowingActor && n.actor?.id)
+          .map((n: any) => n.actor.id as string)
+      );
+      setInitialFollowingIds(alreadyFollowing);
     } catch {
       // silently fail
     } finally {
@@ -91,7 +102,7 @@ function useNotificationsReal(): UseNotificationsResult {
     fetch("/api/notifications/read-all", { method: "PATCH" }).catch(() => {});
   }, []);
 
-  return { notifications, isLoading, markRead, markAllRead };
+  return { notifications, isLoading, markRead, markAllRead, initialFollowingIds };
 }
 
 export const useNotifications = isClientDemoMode

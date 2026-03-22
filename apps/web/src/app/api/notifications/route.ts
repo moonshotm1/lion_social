@@ -41,12 +41,14 @@ export async function GET() {
       notifications.map(n => n.referenceId.split(':')[0])
     ));
 
-    const { data: actors } = await supabase
-      .from('User')
-      .select('id, username, avatarUrl')
-      .in('id', actorIds);
+    const [{ data: actors }, { data: myFollows }] = await Promise.all([
+      supabase.from('User').select('id, username, avatarUrl').in('id', actorIds),
+      // Which of these actors does the current user already follow?
+      supabase.from('Follow').select('followingId').eq('followerId', dbUser.id).in('followingId', actorIds),
+    ]);
 
     const actorMap = Object.fromEntries((actors ?? []).map(a => [a.id, a]));
+    const alreadyFollowing = new Set((myFollows ?? []).map((f: any) => f.followingId));
 
     const enriched = notifications.map(n => {
       const [actorId, postId] = n.referenceId.split(':');
@@ -64,10 +66,20 @@ export async function GET() {
         createdAt: n.createdAt,
         message,
         actor,
+        isFollowingActor: alreadyFollowing.has(actorId),
       };
     });
 
-    return NextResponse.json({ notifications: enriched });
+    // Deduplicate follow notifications: only show the most recent one per actor
+    const seen = new Set<string>();
+    const deduped = enriched.filter(n => {
+      if (n.type !== 'follow') return true;
+      if (seen.has(n.actor.id)) return false;
+      seen.add(n.actor.id);
+      return true;
+    });
+
+    return NextResponse.json({ notifications: deduped });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch notifications';
     console.error('[notifications] Error:', message);

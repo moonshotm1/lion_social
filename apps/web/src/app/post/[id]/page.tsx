@@ -11,6 +11,7 @@ import { mockPosts } from "@/lib/mock-data";
 import { transformPost } from "@/lib/transforms";
 import { getTimeAgo } from "@/lib/types";
 import type { MockPost } from "@/lib/types";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 // ─── Comment list ──────────────────────────────────────────────────────────
 
@@ -241,7 +242,10 @@ function PostDetailReal({ id }: { id: string }) {
 
   const fetchPost = useCallback(async () => {
     try {
-      const res = await fetch(`/api/post/${id}`);
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+      const headers: Record<string, string> = {};
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      const res = await fetch(`/api/post/${id}`, { headers });
       if (!res.ok) return;
       const data = await res.json();
       setPostData(data);
@@ -260,9 +264,12 @@ function PostDetailReal({ id }: { id: string }) {
     async (content: string) => {
       setIsCommenting(true);
       try {
+        const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
         await fetch(`/api/post/${id}/comment`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ content }),
         });
         await fetchPost();

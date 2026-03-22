@@ -51,6 +51,13 @@ export async function POST(req: NextRequest) {
 
     if (existing) {
       await supabase.from('Follow').delete().eq('id', existing.id);
+      // Remove the follow notification so it doesn't linger after unfollow
+      await supabase
+        .from('Notification')
+        .delete()
+        .eq('userId', targetUserId)
+        .eq('type', 'follow')
+        .eq('referenceId', dbUser.id);
       return NextResponse.json({ following: false });
     }
 
@@ -62,14 +69,25 @@ export async function POST(req: NextRequest) {
       createdAt: now,
     });
 
-    await supabase.from('Notification').insert({
-      id: genId(),
-      userId: targetUserId,
-      type: 'follow',
-      referenceId: dbUser.id,
-      read: false,
-      createdAt: now,
-    });
+    // Only insert notification if one doesn't already exist for this actor→target pair
+    const { data: existingNotif } = await supabase
+      .from('Notification')
+      .select('id')
+      .eq('userId', targetUserId)
+      .eq('type', 'follow')
+      .eq('referenceId', dbUser.id)
+      .maybeSingle();
+
+    if (!existingNotif) {
+      await supabase.from('Notification').insert({
+        id: genId(),
+        userId: targetUserId,
+        type: 'follow',
+        referenceId: dbUser.id,
+        read: false,
+        createdAt: now,
+      });
+    }
 
     return NextResponse.json({ following: true });
   } catch (err) {

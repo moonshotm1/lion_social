@@ -19,24 +19,9 @@ WHERE id NOT IN (
   ORDER BY "userId", "postId", "createdAt" ASC
 );
 
--- ── Add unique constraints (safe: skip if already exists) ─────────────────────
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'Like_userId_postId_key' AND conrelid = '"Like"'::regclass
-  ) THEN
-    ALTER TABLE "Like" ADD CONSTRAINT "Like_userId_postId_key" UNIQUE ("userId", "postId");
-  END IF;
-END $$;
-
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'Save_userId_postId_key' AND conrelid = '"Save"'::regclass
-  ) THEN
-    ALTER TABLE "Save" ADD CONSTRAINT "Save_userId_postId_key" UNIQUE ("userId", "postId");
-  END IF;
-END $$;
+-- ── Add unique indexes (IF NOT EXISTS is safe to re-run) ─────────────────────
+CREATE UNIQUE INDEX IF NOT EXISTS "Like_userId_postId_key" ON "Like" ("userId", "postId");
+CREATE UNIQUE INDEX IF NOT EXISTS "Save_userId_postId_key" ON "Save" ("userId", "postId");
 
 -- ── Verify ────────────────────────────────────────────────────────────────────
 SELECT conname, contype FROM pg_constraint

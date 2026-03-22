@@ -93,6 +93,7 @@ export async function GET(req: NextRequest) {
     const result = (users ?? []).map((u: any) => ({
       id: u.id,
       username: u.username,
+      displayName: u.displayName ?? u.username,
       avatarUrl: u.avatarUrl ?? null,
       bio: u.bio ?? '',
       isFollowing: viewerFollowingSet.has(u.id),

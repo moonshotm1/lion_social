@@ -11,6 +11,7 @@ type ConnectionType = "followers" | "following";
 interface ConnectionUser {
   id: string;
   username: string;
+  displayName: string;
   avatarUrl: string | null;
   bio: string;
   isFollowing: boolean;
@@ -36,9 +37,13 @@ export function ConnectionsModal({
   const [users, setUsers] = useState<ConnectionUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState<Set<string>>(new Set());
+  // Local count state so follow/unfollow actions immediately reflect in tab counts
+  const [localFollowersCount, setLocalFollowersCount] = useState(followersCount);
+  const [localFollowingCount, setLocalFollowingCount] = useState(followingCount);
 
   const fetchConnections = useCallback(async (type: ConnectionType) => {
     setIsLoading(true);
+    setUsers([]);
     try {
       const supabase = createSupabaseBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
@@ -53,7 +58,7 @@ export function ConnectionsModal({
       const data = await res.json();
       if (res.ok) setUsers(data.users ?? []);
     } catch {
-      // keep empty
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -68,10 +73,11 @@ export function ConnectionsModal({
     setFollowLoading((prev) => new Set(prev).add(targetUser.id));
 
     const willFollow = !targetUser.isFollowing;
-    // Optimistic update
+    // Optimistic update — update list state and following count
     setUsers((prev) =>
       prev.map((u) => u.id === targetUser.id ? { ...u, isFollowing: willFollow } : u)
     );
+    setLocalFollowingCount((c) => willFollow ? c + 1 : Math.max(0, c - 1));
 
     try {
       const supabase = createSupabaseBrowserClient();
@@ -91,11 +97,17 @@ export function ConnectionsModal({
       setUsers((prev) =>
         prev.map((u) => u.id === targetUser.id ? { ...u, isFollowing: serverFollowing } : u)
       );
+      // Update local following count based on server-confirmed state
+      if (serverFollowing !== willFollow) {
+        // Server corrected our optimistic guess — adjust accordingly
+        setLocalFollowingCount((c) => serverFollowing ? c + 1 : Math.max(0, c - 1));
+      }
     } catch {
-      // Revert
+      // Revert follow state and count
       setUsers((prev) =>
         prev.map((u) => u.id === targetUser.id ? { ...u, isFollowing: !willFollow } : u)
       );
+      setLocalFollowingCount((c) => willFollow ? Math.max(0, c - 1) : c + 1);
     } finally {
       setFollowLoading((prev) => {
         const next = new Set(prev);
@@ -134,7 +146,7 @@ export function ConnectionsModal({
         {/* Tabs */}
         <div className="flex shrink-0 border-b border-lion-gold/10">
           {(["followers", "following"] as const).map((tab) => {
-            const count = tab === "followers" ? followersCount : followingCount;
+            const count = tab === "followers" ? localFollowersCount : localFollowingCount;
             const isActive = activeTab === tab;
             return (
               <button
@@ -195,11 +207,9 @@ export function ConnectionsModal({
                     className="flex-1 min-w-0"
                   >
                     <p className="text-sm font-semibold text-lion-white truncate">
-                      @{u.username}
+                      {u.displayName || u.username}
                     </p>
-                    {u.bio && (
-                      <p className="text-xs text-lion-gray-3 truncate">{u.bio}</p>
-                    )}
+                    <p className="text-xs text-lion-gray-3 truncate">@{u.username}</p>
                   </Link>
 
                   {!u.isSelf && (

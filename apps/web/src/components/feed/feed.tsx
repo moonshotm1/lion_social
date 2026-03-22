@@ -12,7 +12,6 @@ import {
   BookOpen,
   Users,
 } from "lucide-react";
-import Link from "next/link";
 import { PostCard } from "./post-card";
 import { useFeed } from "@/hooks/use-feed";
 import type { PostType } from "@/lib/types";
@@ -38,7 +37,10 @@ export function Feed() {
   const [activeTab, setActiveTab] = useState<FeedTab>("following");
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
-  const { posts: filteredPosts, isLoading } = useFeed(activeCategory, activeTab);
+  // "All" means show everything from everyone, not just followed users.
+  // Specific category filters still respect the current tab (following vs explore).
+  const effectiveTab = activeCategory === "all" ? "explore" : activeTab;
+  const { posts: filteredPosts, isLoading } = useFeed(activeCategory, effectiveTab);
 
   return (
     <div className="space-y-6">

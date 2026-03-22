@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const postId = params.id;
 
@@ -12,6 +12,21 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
+
+    // Resolve optional viewer from Bearer token
+    let viewerDbId: string | null = null;
+    const auth = req.headers.get('authorization');
+    if (auth?.startsWith('Bearer ')) {
+      try {
+        const token = auth.slice(7);
+        const { data: { user: authUser } } = await supabase.auth.getUser(token);
+        if (authUser) {
+          const { data: viewer } = await supabase
+            .from('User').select('id').eq('supabaseId', authUser.id).single();
+          viewerDbId = viewer?.id ?? null;
+        }
+      } catch { /* non-fatal */ }
+    }
 
     const { data: post, error } = await supabase
       .from('Post')
@@ -23,54 +38,58 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Increment view count atomically (avoids race conditions under concurrent requests)
+    // Increment view count atomically
     await supabase.rpc('increment_post_view', { post_id: postId });
 
-    // Fetch post owner
-    const { data: user } = await supabase
-      .from('User')
-      .select('id, username, avatarUrl, bio')
-      .eq('id', post.userId)
-      .single();
+    // Fetch everything in parallel
+    const [
+      { data: user },
+      { data: comments },
+      { data: likesRows },
+      { data: commentsRows },
+      { data: savesRows },
+      { data: viewerLike },
+      { data: viewerSave },
+    ] = await Promise.all([
+      supabase.from('User').select('id, username, displayName, avatarUrl, bio').eq('id', post.userId).single(),
+      supabase.from('Comment').select('id, content, createdAt, userId').eq('postId', postId).order('createdAt', { ascending: true }),
+      supabase.from('Like').select('id').eq('postId', postId),
+      supabase.from('Comment').select('id').eq('postId', postId),
+      supabase.from('Save').select('id').eq('postId', postId),
+      viewerDbId
+        ? supabase.from('Like').select('id').eq('postId', postId).eq('userId', viewerDbId).maybeSingle()
+        : Promise.resolve({ data: null }),
+      viewerDbId
+        ? supabase.from('Save').select('id').eq('postId', postId).eq('userId', viewerDbId).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
 
-    // Fetch comments with user info
-    const { data: comments } = await supabase
-      .from('Comment')
-      .select('id, content, createdAt, userId')
-      .eq('postId', postId)
-      .order('createdAt', { ascending: true });
-
-    const commentUserIds = Array.from(new Set((comments ?? []).map(c => c.userId)));
+    const commentUserIds = Array.from(new Set((comments ?? []).map((c: any) => c.userId)));
     let commentUsers: Record<string, { id: string; username: string; avatarUrl: string | null }> = {};
     if (commentUserIds.length) {
       const { data: users } = await supabase
         .from('User')
         .select('id, username, avatarUrl')
         .in('id', commentUserIds);
-      commentUsers = Object.fromEntries((users ?? []).map(u => [u.id, u]));
+      commentUsers = Object.fromEntries((users ?? []).map((u: any) => [u.id, u]));
     }
 
-    // Fetch counts
-    const [{ count: likeCount }, { count: commentCount }, { count: saveCount }] = await Promise.all([
-      supabase.from('Like').select('*', { count: 'exact', head: true }).eq('postId', postId),
-      supabase.from('Comment').select('*', { count: 'exact', head: true }).eq('postId', postId),
-      supabase.from('Save').select('*', { count: 'exact', head: true }).eq('postId', postId),
-    ]);
-
-    const enrichedComments = (comments ?? []).map(c => ({
+    const enrichedComments = (comments ?? []).map((c: any) => ({
       ...c,
       user: commentUsers[c.userId] ?? { id: c.userId, username: 'unknown', avatarUrl: null },
     }));
 
     return NextResponse.json({
       ...post,
-      viewCount: (post.viewCount ?? 0) + 1, // optimistic +1; DB was incremented atomically
+      viewCount: (post.viewCount ?? 0) + 1,
       user: user ?? { id: post.userId, username: 'unknown', avatarUrl: null, bio: null },
+      isLiked: !!viewerLike,
+      isBookmarked: !!viewerSave,
       comments: enrichedComments,
       _count: {
-        likes: likeCount ?? 0,
-        comments: commentCount ?? 0,
-        saves: saveCount ?? 0,
+        likes: (likesRows ?? []).length,
+        comments: (commentsRows ?? []).length,
+        saves: (savesRows ?? []).length,
       },
     });
   } catch (err) {

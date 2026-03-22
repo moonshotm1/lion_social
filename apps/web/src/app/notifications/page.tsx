@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -11,10 +11,12 @@ import {
   AtSign,
   Check,
   CheckCheck,
+  UserCheck,
 } from "lucide-react";
 import { useNotifications } from "@/hooks/use-notifications";
 import { getTimeAgo } from "@/lib/types";
 import type { MockNotification } from "@/lib/types";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 const notificationIcons: Record<MockNotification["type"], React.ElementType> = {
   like: Heart,
@@ -31,7 +33,7 @@ const notificationColors: Record<MockNotification["type"], string> = {
 };
 
 export default function NotificationsPage() {
-  const { notifications, isLoading, markRead, markAllRead } = useNotifications();
+  const { notifications, isLoading, markRead, markAllRead, initialFollowingIds } = useNotifications();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -43,6 +45,68 @@ export default function NotificationsPage() {
       markAllRead();
     }
   }, [isLoading, unreadCount, markAllRead]);
+
+  // ── Follow-back state ──────────────────────────────────────────────────────
+  // followingSet: actor IDs we are currently following back
+  // loadingSet: actor IDs whose follow request is in-flight
+  const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
+
+  // Seed followingSet once we know who the current user already follows
+  useEffect(() => {
+    if (initialFollowingIds.size > 0) {
+      setFollowingSet(initialFollowingIds);
+    }
+  }, [initialFollowingIds]);
+  const [followLoadingSet, setFollowLoadingSet] = useState<Set<string>>(new Set());
+
+  const handleFollowBack = useCallback(async (e: React.MouseEvent, actorId: string) => {
+    e.stopPropagation(); // don't mark the notification as read
+    if (followLoadingSet.has(actorId)) return;
+
+    const willFollow = !followingSet.has(actorId);
+
+    // Optimistic update
+    setFollowLoadingSet((prev) => new Set(prev).add(actorId));
+    setFollowingSet((prev) => {
+      const next = new Set(prev);
+      if (willFollow) next.add(actorId); else next.delete(actorId);
+      return next;
+    });
+
+    try {
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+
+      const res = await fetch("/api/user/follow", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ targetUserId: actorId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      const serverFollowing = !!data.following;
+      setFollowingSet((prev) => {
+        const next = new Set(prev);
+        if (serverFollowing) next.add(actorId); else next.delete(actorId);
+        return next;
+      });
+    } catch {
+      // Revert on error
+      setFollowingSet((prev) => {
+        const next = new Set(prev);
+        if (willFollow) next.delete(actorId); else next.add(actorId);
+        return next;
+      });
+    } finally {
+      setFollowLoadingSet((prev) => {
+        const next = new Set(prev);
+        next.delete(actorId);
+        return next;
+      });
+    }
+  }, [followingSet, followLoadingSet]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -80,6 +144,9 @@ export default function NotificationsPage() {
         {notifications.map((notification) => {
           const Icon = notificationIcons[notification.type];
           const colorClass = notificationColors[notification.type];
+          const actorId = notification.user.id;
+          const isFollowingBack = followingSet.has(actorId);
+          const isFollowLoading = followLoadingSet.has(actorId);
 
           return (
             <div
@@ -124,6 +191,7 @@ export default function NotificationsPage() {
                   <Link
                     href={`/profile/${notification.user.username}`}
                     className="font-semibold text-lion-white hover:text-lion-gold transition-colors duration-200"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     {notification.user.displayName}
                   </Link>{" "}
@@ -136,10 +204,29 @@ export default function NotificationsPage() {
                 </p>
               </div>
 
-              {/* Action indicator for follow notifications */}
-              {notification.type === "follow" && (
-                <button className="flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold bg-lion-gold text-lion-black hover:shadow-gold-sm transition-all duration-200 mt-1">
-                  Follow back
+              {/* Follow back button for follow notifications */}
+              {notification.type === "follow" && actorId && (
+                <button
+                  onClick={(e) => handleFollowBack(e, actorId)}
+                  disabled={isFollowLoading}
+                  className={`
+                    flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                    text-xs font-semibold transition-all duration-200 mt-1
+                    disabled:opacity-60 disabled:cursor-not-allowed
+                    ${isFollowingBack
+                      ? "bg-lion-dark-3 text-lion-white border border-lion-gold/20"
+                      : "bg-lion-gold text-lion-black hover:shadow-gold-sm"
+                    }
+                  `}
+                >
+                  {isFollowingBack ? (
+                    <>
+                      <UserCheck className="w-3 h-3" />
+                      Following
+                    </>
+                  ) : (
+                    "Follow back"
+                  )}
                 </button>
               )}
             </div>

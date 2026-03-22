@@ -439,11 +439,6 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const [liked, setLiked] = useState(post.isLiked || likedIds.has(post.id));
   const [likeCount, setLikeCount] = useState(post.likes ?? 0);
 
-  // Sync liked state when LikesContext bootstraps after mount
-  useEffect(() => {
-    setLiked(likedIds.has(post.id));
-  }, [likedIds, post.id]);
-
   // ── Star/save state ───────────────────────────────────────────────────────
   const [starred, setStarred] = useState(post.isBookmarked ?? false);
   const [starCount, setStarCount] = useState(post.favorites ?? 0);
@@ -457,6 +452,31 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCountRef = useRef(0);
   const articleRef = useRef<HTMLElement>(null);
+  // Guards to avoid overwriting optimistic counts during in-flight requests
+  const pendingLikeRef = useRef(false);
+  const pendingStarRef = useRef(false);
+
+  // Sync liked state when LikesContext bootstraps or server isLiked changes.
+  // Kept SEPARATE from the count sync so that setLikedId() calls (after user action)
+  // don't trigger a count reset back to the stale prop value.
+  useEffect(() => {
+    if (!pendingLikeRef.current) {
+      setLiked(post.isLiked || likedIds.has(post.id));
+    }
+  }, [likedIds, post.id, post.isLiked]);
+  // Sync counts only from feed polls — not tied to likedIds changes
+  useEffect(() => {
+    if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);
+  }, [post.likes]);
+  useEffect(() => {
+    if (!pendingStarRef.current) {
+      setStarred(post.isBookmarked ?? false);
+      setStarCount(post.favorites ?? 0);
+    }
+  }, [post.isBookmarked, post.favorites]);
+  useEffect(() => {
+    setCommentCount(post.comments);
+  }, [post.comments]);
 
   // Track view via IntersectionObserver — only fires when post is actually visible,
   // and ViewsProvider will queue the request if the auth token isn't ready yet.
@@ -499,6 +519,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     const newLiked = !prevLiked;
 
     // Optimistic update
+    pendingLikeRef.current = true;
     setLiked(newLiked);
     setLikeCount(newLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
     setIsAnimatingLike(true);
@@ -507,6 +528,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
 
     if (isClientDemoMode) {
       setLikedId(post.id, newLiked);
+      pendingLikeRef.current = false;
       return;
     }
 
@@ -530,6 +552,8 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       // Revert optimistic update
       setLiked(prevLiked);
       setLikeCount(prevCount);
+    } finally {
+      pendingLikeRef.current = false;
     }
   };
 
@@ -539,10 +563,14 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     const newStarred = !prevStarred;
 
     // Optimistic update
+    pendingStarRef.current = true;
     setStarred(newStarred);
     setStarCount(newStarred ? prevCount + 1 : Math.max(0, prevCount - 1));
 
-    if (isClientDemoMode) return;
+    if (isClientDemoMode) {
+      pendingStarRef.current = false;
+      return;
+    }
 
     try {
       const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
@@ -562,6 +590,8 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       // Revert
       setStarred(prevStarred);
       setStarCount(prevCount);
+    } finally {
+      pendingStarRef.current = false;
     }
   };
 

@@ -15,6 +15,8 @@ import {
   Copy,
   Check,
   Ticket,
+  LogOut,
+  Camera,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUserProfile } from "@/hooks/use-user-profile";
@@ -39,6 +41,7 @@ export default function ProfilePage({
   const [followersCount, setFollowersCount] = useState(0);
   const [showConnections, setShowConnections] = useState(false);
   const [connectionsTab, setConnectionsTab] = useState<"followers" | "following">("followers");
+  const [showMenu, setShowMenu] = useState(false);
 
   // Resolve the "me" alias to the current user's real username
   const { user: currentUser, isLoading: currentUserLoading } = useCurrentUser();
@@ -53,7 +56,17 @@ export default function ProfilePage({
   const resolvedUsername =
     params.username === "me" ? (currentUser?.username ?? "") : params.username;
 
-  const { user: profileUser, posts: userPosts, isFollowing: profileIsFollowing, isLoading } = useUserProfile(resolvedUsername);
+  // refreshKey increments when the page regains visibility, forcing counts to re-fetch
+  const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setRefreshKey((k) => k + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  const { user: profileUser, posts: userPosts, isFollowing: profileIsFollowing, isLoading } = useUserProfile(resolvedUsername, refreshKey);
 
   const isOwnProfile =
     !!currentUser &&
@@ -65,7 +78,11 @@ export default function ProfilePage({
   useEffect(() => {
     if (activeTab !== "likes" || !profileUser?.id) return;
     setLikedLoading(true);
-    fetch(`/api/post/liked?userId=${encodeURIComponent(profileUser.id)}`)
+    createSupabaseBrowserClient().auth.getSession().then(({ data: { session } }) => {
+      const headers: Record<string, string> = {};
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      return fetch(`/api/post/liked?userId=${encodeURIComponent(profileUser.id)}`, { headers });
+    })
       .then((r) => r.json())
       .then((data) => { setLikedPosts((data.posts ?? []).map(transformPost)); setLikedLoading(false); })
       .catch(() => setLikedLoading(false));
@@ -77,7 +94,11 @@ export default function ProfilePage({
   useEffect(() => {
     if (activeTab !== "saved" || !profileUser?.id) return;
     setSavedLoading(true);
-    fetch(`/api/post/saved?userId=${encodeURIComponent(profileUser.id)}`)
+    createSupabaseBrowserClient().auth.getSession().then(({ data: { session } }) => {
+      const headers: Record<string, string> = {};
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      return fetch(`/api/post/saved?userId=${encodeURIComponent(profileUser.id)}`, { headers });
+    })
       .then((r) => r.json())
       .then((data) => { setSavedPosts((data.posts ?? []).map(transformPost)); setSavedLoading(false); })
       .catch(() => setSavedLoading(false));
@@ -146,6 +167,13 @@ export default function ProfilePage({
     } finally {
       setFollowLoading(false);
     }
+  };
+
+  const handleSignOut = async () => {
+    setShowMenu(false);
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    router.push("/auth/login");
   };
 
   const handleCopyCode = () => {
@@ -217,9 +245,36 @@ export default function ProfilePage({
             </p>
           </div>
         </div>
-        <button className="p-2 rounded-xl text-lion-gray-3 hover:text-lion-white hover:bg-lion-dark-3 transition-all duration-200">
-          <MoreHorizontal className="w-5 h-5" />
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowMenu((v) => !v)}
+            className="p-2 rounded-xl text-lion-gray-3 hover:text-lion-white hover:bg-lion-dark-3 transition-all duration-200"
+          >
+            <MoreHorizontal className="w-5 h-5" />
+          </button>
+
+          {showMenu && (
+            <>
+              {/* Backdrop */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowMenu(false)}
+              />
+              {/* Dropdown */}
+              <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-xl bg-lion-dark-2 border border-lion-gold/15 shadow-xl overflow-hidden">
+                {isOwnProfile && (
+                  <button
+                    onClick={handleSignOut}
+                    className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-red-400 hover:bg-red-400/10 transition-colors duration-150"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign out
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Profile Header */}
@@ -232,14 +287,24 @@ export default function ProfilePage({
 
         {/* Avatar */}
         <div className="px-4 -mt-12 relative z-10">
-          <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-lion-black bg-lion-dark-2">
-            <Image
-              src={user.avatar}
-              alt={user.displayName}
-              width={96}
-              height={96}
-              className="w-full h-full object-cover"
-            />
+          <div className="relative w-24 h-24 inline-block">
+            <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-lion-black bg-lion-dark-2">
+              <Image
+                src={user.avatar}
+                alt={user.displayName}
+                width={96}
+                height={96}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            {isOwnProfile && (
+              <Link
+                href="/profile/edit"
+                className="absolute inset-0 rounded-full flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-200"
+              >
+                <Camera className="w-6 h-6 text-white" />
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -310,7 +375,8 @@ export default function ProfilePage({
           </div>
           <div className="h-8 w-px bg-lion-gold/10" />
           <button
-            className="text-center hover:opacity-80 transition-opacity active:scale-95"
+            className="text-center hover:opacity-80 transition-opacity active:scale-95 disabled:opacity-40 cursor-pointer disabled:cursor-default"
+            disabled={!profileUser}
             onClick={() => { setConnectionsTab("followers"); setShowConnections(true); }}
           >
             <p className="text-lg font-bold text-lion-white">
@@ -320,7 +386,8 @@ export default function ProfilePage({
           </button>
           <div className="h-8 w-px bg-lion-gold/10" />
           <button
-            className="text-center hover:opacity-80 transition-opacity active:scale-95"
+            className="text-center hover:opacity-80 transition-opacity active:scale-95 disabled:opacity-40 cursor-pointer disabled:cursor-default"
+            disabled={!profileUser}
             onClick={() => { setConnectionsTab("following"); setShowConnections(true); }}
           >
             <p className="text-lg font-bold text-lion-white">
@@ -473,7 +540,11 @@ export default function ProfilePage({
           initialTab={connectionsTab}
           followersCount={followersCount}
           followingCount={user.following}
-          onClose={() => setShowConnections(false)}
+          onClose={() => {
+            setShowConnections(false);
+            // Trigger a profile refresh so counts are accurate after follow/unfollow in modal
+            setTimeout(() => setRefreshKey((k) => k + 1), 500);
+          }}
         />
       )}
     </div>
