@@ -456,14 +456,14 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const pendingLikeRef = useRef(false);
   const pendingStarRef = useRef(false);
 
-  // Sync liked state when LikesContext bootstraps or server isLiked changes.
-  // Kept SEPARATE from the count sync so that setLikedId() calls (after user action)
-  // don't trigger a count reset back to the stale prop value.
+  // Sync liked state when LikesContext bootstraps or changes.
+  // Only trust likedIds — not post.isLiked — so stale feed data doesn't
+  // override a user's unlike before the next poll catches up.
   useEffect(() => {
     if (!pendingLikeRef.current) {
-      setLiked(post.isLiked || likedIds.has(post.id));
+      setLiked(likedIds.has(post.id));
     }
-  }, [likedIds, post.id, post.isLiked]);
+  }, [likedIds, post.id]);
   // Sync counts only from feed polls — not tied to likedIds changes
   useEffect(() => {
     if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);

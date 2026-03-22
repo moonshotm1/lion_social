@@ -83,23 +83,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (insertError) throw insertError;
 
-    // Notify post owner (not self)
-    const { data: post } = await supabase
-      .from('Post')
-      .select('userId')
-      .eq('id', postId)
-      .single();
-
-    if (post && post.userId !== dbUser.id) {
-      await supabase.from('Notification').insert({
-        id: genId(),
-        userId: post.userId,
-        type: 'comment',
-        referenceId: `${dbUser.id}:${postId}`,
-        read: false,
-        createdAt: now,
-      });
-    }
+    // Notify post owner (fire-and-forget — don't let notification failure block the response)
+    supabase.from('Post').select('userId').eq('id', postId).single().then(({ data: post }) => {
+      if (post && post.userId !== dbUser.id) {
+        supabase.from('Notification').insert({
+          id: genId(),
+          userId: post.userId,
+          type: 'comment',
+          referenceId: `${dbUser.id}:${postId}`,
+          read: false,
+          createdAt: now,
+        });
+      }
+    });
 
     return NextResponse.json(comment);
   } catch (err) {
