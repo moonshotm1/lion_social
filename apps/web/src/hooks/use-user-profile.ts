@@ -33,6 +33,9 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
     if (!username) return;
 
     let cancelled = false;
+    let profileDbId: string | null = null;
+
+    const supabase = createSupabaseBrowserClient();
 
     async function load(background = false) {
       if (!background) {
@@ -44,7 +47,7 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
       }
 
       try {
-        const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
         const headers: Record<string, string> = {};
         if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
 
@@ -57,6 +60,7 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
         if (!userRes.ok) throw new Error(userData.error ?? "User not found");
         if (cancelled) return;
 
+        profileDbId = userData.id;
         setUser(transformUser(userData));
         setIsFollowing(!!userData.isFollowing);
 
@@ -92,12 +96,51 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
 
     load(false);
 
-    // Poll follower/following counts every 10s silently
+    // Fallback: poll every 10s in case realtime isn't available
     const interval = setInterval(() => { if (!cancelled) load(true); }, 10000);
+
+    // Realtime: subscribe to Follow table changes for this profile user.
+    // Fires immediately when anyone follows/unfollows — much faster than polling.
+    // We use a channel name unique to the username; once we have the DB id we filter by it.
+    const channelName = `profile-follows-${username}`;
+    let realtimeReady = false;
+
+    const setupRealtime = async () => {
+      // Wait until we have the profile DB id (set during first load)
+      const waitForId = () => new Promise<string | null>((resolve) => {
+        if (profileDbId) { resolve(profileDbId); return; }
+        const check = setInterval(() => {
+          if (profileDbId || cancelled) { clearInterval(check); resolve(profileDbId); }
+        }, 200);
+      });
+
+      const dbId = await waitForId();
+      if (!dbId || cancelled) return;
+
+      realtimeReady = true;
+      supabase
+        .channel(channelName)
+        .on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "Follow", filter: `followingId=eq.${dbId}` },
+          () => { if (!cancelled) load(true); }
+        )
+        .on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "Follow", filter: `followerId=eq.${dbId}` },
+          () => { if (!cancelled) load(true); }
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
 
     return () => {
       cancelled = true;
       clearInterval(interval);
+      if (realtimeReady) {
+        supabase.channel(channelName).unsubscribe();
+      }
     };
   }, [username, refreshKey]); // refreshKey triggers a full re-fetch
 

@@ -166,6 +166,8 @@ export default function ProfilePage({
       setFollowersCount((prev) => (willFollow ? Math.max(0, prev - 1) : prev + 1));
     } finally {
       setFollowLoading(false);
+      // Refresh counts from server shortly after the DB write completes
+      setTimeout(() => setRefreshKey((k) => k + 1), 800);
     }
   };
 
