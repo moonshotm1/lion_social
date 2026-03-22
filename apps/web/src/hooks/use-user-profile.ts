@@ -63,7 +63,8 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
         // 2. Fetch user's posts (skip on background refresh — counts update, posts rarely change)
         if (!background) {
           const postsRes = await fetch(
-            `/api/post/by-user?userId=${encodeURIComponent(userData.id)}`
+            `/api/post/by-user?userId=${encodeURIComponent(userData.id)}`,
+            { headers }
           );
           const postsData = await postsRes.json();
           if (!postsRes.ok) throw new Error(postsData.error ?? "Failed to fetch posts");

@@ -45,16 +45,21 @@ export async function GET(req: NextRequest) {
 
     const userMap: Record<string, any> = Object.fromEntries((users ?? []).map((u) => [u.id, u]))
 
-    // Fetch like/comment counts
-    const [{ data: likes }, { data: comments }] = await Promise.all([
+    // Fetch like/comment/save counts + user's likes for isLiked
+    const [{ data: likes }, { data: comments }, { data: allSaves }, { data: userLikes }] = await Promise.all([
       supabase.from('Like').select('postId').in('postId', postIds),
       supabase.from('Comment').select('postId').in('postId', postIds),
+      supabase.from('Save').select('postId').in('postId', postIds),
+      supabase.from('Like').select('postId').eq('userId', userId).in('postId', postIds),
     ])
 
     const likeCountMap: Record<string, number> = {}
     const commentCountMap: Record<string, number> = {}
+    const saveCountMap: Record<string, number> = {}
     ;(likes ?? []).forEach((l) => { likeCountMap[l.postId] = (likeCountMap[l.postId] ?? 0) + 1 })
     ;(comments ?? []).forEach((c) => { commentCountMap[c.postId] = (commentCountMap[c.postId] ?? 0) + 1 })
+    ;(allSaves ?? []).forEach((s) => { saveCountMap[s.postId] = (saveCountMap[s.postId] ?? 0) + 1 })
+    const userLikedSet = new Set((userLikes ?? []).map((l: any) => l.postId))
 
     // Sort posts in saved order (most recently saved first)
     const postMap = Object.fromEntries(posts.map((p) => [p.id, p]))
@@ -65,10 +70,12 @@ export async function GET(req: NextRequest) {
         return {
           ...post,
           user: userMap[post.userId] ?? { id: post.userId, username: 'unknown', avatarUrl: null, bio: null },
+          isLiked: userLikedSet.has(post.id),
+          isBookmarked: true,
           _count: {
             likes: likeCountMap[post.id] ?? 0,
             comments: commentCountMap[post.id] ?? 0,
-            saves: 0,
+            saves: saveCountMap[post.id] ?? 0,
           },
         }
       })

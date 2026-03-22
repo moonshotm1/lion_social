@@ -78,7 +78,11 @@ export default function ProfilePage({
   useEffect(() => {
     if (activeTab !== "likes" || !profileUser?.id) return;
     setLikedLoading(true);
-    fetch(`/api/post/liked?userId=${encodeURIComponent(profileUser.id)}`)
+    createSupabaseBrowserClient().auth.getSession().then(({ data: { session } }) => {
+      const headers: Record<string, string> = {};
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      return fetch(`/api/post/liked?userId=${encodeURIComponent(profileUser.id)}`, { headers });
+    })
       .then((r) => r.json())
       .then((data) => { setLikedPosts((data.posts ?? []).map(transformPost)); setLikedLoading(false); })
       .catch(() => setLikedLoading(false));
@@ -90,7 +94,11 @@ export default function ProfilePage({
   useEffect(() => {
     if (activeTab !== "saved" || !profileUser?.id) return;
     setSavedLoading(true);
-    fetch(`/api/post/saved?userId=${encodeURIComponent(profileUser.id)}`)
+    createSupabaseBrowserClient().auth.getSession().then(({ data: { session } }) => {
+      const headers: Record<string, string> = {};
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      return fetch(`/api/post/saved?userId=${encodeURIComponent(profileUser.id)}`, { headers });
+    })
       .then((r) => r.json())
       .then((data) => { setSavedPosts((data.posts ?? []).map(transformPost)); setSavedLoading(false); })
       .catch(() => setSavedLoading(false));
