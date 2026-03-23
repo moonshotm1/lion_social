@@ -19,6 +19,9 @@ import {
   BookOpen,
   UtensilsCrossed,
   Send,
+  Trash2,
+  Flag,
+  Check,
 } from "lucide-react";
 import type { MockPost, WorkoutData, MealData, QuoteData, StoryData } from "@/lib/types";
 import { getTimeAgo, formatCount, postTypeConfig } from "@/lib/types";
@@ -26,6 +29,7 @@ import { isClientDemoMode } from "@/lib/env-client";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { useLikes } from "@/components/providers/likes-provider";
 import { useViews } from "@/components/providers/views-provider";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 // ─── Comment types ──────────────────────────────────────────────────────────
 
@@ -432,6 +436,8 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const router = useRouter();
   const { likedIds, setLikedId } = useLikes();
   const { trackView } = useViews();
+  const { user: currentUser } = useCurrentUser();
+  const isOwnPost = !!currentUser && currentUser.username === post.author.username;
 
   // ── Like state ────────────────────────────────────────────────────────────
   // post.isLiked comes from the feed route (server-computed) — no async delay.
@@ -449,6 +455,13 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments);
   const [viewCount, setViewCount] = useState(post.views);
+  // ── More menu state ───────────────────────────────────────────────────────
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showReportOptions, setShowReportOptions] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+  const [reported, setReported] = useState(false);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCountRef = useRef(0);
   const articleRef = useRef<HTMLElement>(null);
@@ -496,7 +509,47 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     return () => observer.disconnect();
   }, [post.id, trackView]);
 
+  // If post was deleted by the current user, hide it
+  if (deleted) return null;
+
   const typeConfig = postTypeConfig[post.type];
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+      const res = await fetch(`/api/post/${post.id}`, {
+        method: "DELETE",
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      if (res.ok) {
+        setDeleted(true);
+        setShowMoreMenu(false);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleReport = async (reason: string) => {
+    try {
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+      await fetch(`/api/post/${post.id}/report`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ reason }),
+      });
+    } catch {
+      // silently fail
+    }
+    setReported(true);
+    setTimeout(() => setShowMoreMenu(false), 1500);
+  };
 
   const handleShare = async () => {
     const url = `${window.location.origin}/post/${post.id}`;
@@ -672,10 +725,81 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
             {typeConfig.emoji} {typeConfig.label}
           </span>
 
-          {/* More button */}
-          <button className="p-1.5 rounded-lg text-lion-gray-3 hover:text-lion-white hover:bg-lion-dark-3 transition-all duration-200">
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+          {/* More button + dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => { setShowMoreMenu((v) => !v); setShowDeleteConfirm(false); setShowReportOptions(false); }}
+              className="p-1.5 rounded-lg text-lion-gray-3 hover:text-lion-white hover:bg-lion-dark-3 transition-all duration-200"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+
+            {showMoreMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-xl bg-lion-dark-2 border border-lion-gold/15 shadow-xl overflow-hidden">
+                  {isOwnPost ? (
+                    showDeleteConfirm ? (
+                      <div className="p-3 space-y-2">
+                        <p className="text-xs text-lion-gray-3 text-center">Delete this post?</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className="flex-1 text-xs py-1.5 rounded-lg bg-red-500/90 text-white font-semibold hover:bg-red-500 disabled:opacity-50 transition-colors"
+                          >
+                            {isDeleting ? "Deleting…" : "Delete"}
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(false)}
+                            className="flex-1 text-xs py-1.5 rounded-lg bg-lion-dark-3 text-lion-white font-semibold hover:bg-lion-dark-1 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-red-400 hover:bg-red-400/10 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete post
+                      </button>
+                    )
+                  ) : (
+                    reported ? (
+                      <div className="flex items-center gap-2 px-4 py-3 text-sm text-gains-green">
+                        <Check className="w-4 h-4" />
+                        Reported — thank you
+                      </div>
+                    ) : showReportOptions ? (
+                      <div className="py-1">
+                        <p className="px-4 py-2 text-xs text-lion-gray-2 font-semibold uppercase tracking-wider">Report reason</p>
+                        {["Spam", "Inappropriate content", "Harassment", "Misinformation"].map((reason) => (
+                          <button
+                            key={reason}
+                            onClick={() => handleReport(reason)}
+                            className="w-full text-left px-4 py-2.5 text-sm text-lion-gray-5 hover:bg-lion-dark-3 transition-colors"
+                          >
+                            {reason}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowReportOptions(true)}
+                        className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-lion-gray-5 hover:bg-lion-dark-3 transition-colors"
+                      >
+                        <Flag className="w-4 h-4" />
+                        Report post
+                      </button>
+                    )
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
