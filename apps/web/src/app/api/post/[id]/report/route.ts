@@ -35,13 +35,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const reason = typeof body.reason === 'string' ? body.reason.slice(0, 100) : 'No reason given';
 
     // Store report — silently ignore if Report table doesn't exist yet
-    await supabase.from('Report').insert({
-      id: genId(),
-      postId,
-      reporterId: reporterDbId,
-      reason,
-      createdAt: new Date().toISOString(),
-    }).then(() => {}).catch(() => {});
+    try {
+      await supabase.from('Report').insert({
+        id: genId(),
+        postId,
+        reporterId: reporterDbId,
+        reason,
+        createdAt: new Date().toISOString(),
+      });
+    } catch { /* non-fatal */ }
 
     return NextResponse.json({ reported: true });
   } catch {
