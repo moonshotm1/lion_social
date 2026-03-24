@@ -525,6 +525,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       if (res.ok) {
         setDeleted(true);
         setShowMoreMenu(false);
+        window.dispatchEvent(new CustomEvent('lion:post-deleted', { detail: { postId: post.id } }));
       }
     } catch {
       // silently fail

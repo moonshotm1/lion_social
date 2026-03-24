@@ -56,7 +56,13 @@ export function ConnectionsModal({
         { headers }
       );
       const data = await res.json();
-      if (res.ok) setUsers(data.users ?? []);
+      if (res.ok) {
+        const fetched: ConnectionUser[] = data.users ?? [];
+        setUsers(fetched);
+        // Sync tab counts to match actual fetched list so they stay consistent
+        if (type === 'followers') setLocalFollowersCount(fetched.length);
+        else setLocalFollowingCount(fetched.length);
+      }
     } catch {
       setUsers([]);
     } finally {

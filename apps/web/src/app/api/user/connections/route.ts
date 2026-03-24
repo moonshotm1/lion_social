@@ -47,50 +47,69 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // For 'followers': people who follow this user → followingId = userId, join followerId → User
-    // For 'following': people this user follows → followerId = userId, join followingId → User
+    // Fetch user IDs from Follow table, then fetch User records for each.
+    // We fetch ALL follow rows first, then look up all user records in a single query.
+    // Filter out any null/undefined IDs to guard against orphaned records.
     let userIds: string[] = []
 
     if (type === 'followers') {
+      // People who follow userId → followingId = userId
       const { data: rows, error } = await supabase
         .from('Follow')
         .select('followerId')
         .eq('followingId', userId)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      userIds = (rows ?? []).map((r: any) => r.followerId)
+      userIds = (rows ?? []).map((r: any) => r.followerId).filter(Boolean)
     } else {
+      // People userId follows → followerId = userId
       const { data: rows, error } = await supabase
         .from('Follow')
         .select('followingId')
         .eq('followerId', userId)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      userIds = (rows ?? []).map((r: any) => r.followingId)
+      userIds = (rows ?? []).map((r: any) => r.followingId).filter(Boolean)
     }
 
     if (userIds.length === 0) return NextResponse.json({ users: [] })
 
-    // Fetch user records
+    // Deduplicate just in case
+    const uniqueIds = [...new Set(userIds)]
+
+    // Fetch all matching User records in one query
     const { data: users, error: usersErr } = await supabase
       .from('User')
       .select('id, username, displayName, avatarUrl, bio')
-      .in('id', userIds)
+      .in('id', uniqueIds)
 
     if (usersErr) return NextResponse.json({ error: usersErr.message }, { status: 500 })
 
+    const foundUsers = users ?? []
+
+    // Log a warning if counts don't match (indicates orphaned Follow records)
+    if (foundUsers.length !== uniqueIds.length) {
+      const missing = uniqueIds.filter(id => !foundUsers.find((u: any) => u.id === id))
+      console.warn(
+        `[connections] ${type} for userId=${userId}: ` +
+        `Follow table has ${uniqueIds.length} entries but only ${foundUsers.length} User records found. ` +
+        `Missing user IDs: ${missing.join(', ')}`
+      )
+    }
+
     // Resolve isFollowing for each user (viewer → that user)
+    const foundUserIds = foundUsers.map((u: any) => u.id)
     let viewerFollowingSet = new Set<string>()
-    if (viewerDbId && userIds.length > 0) {
+    if (viewerDbId && foundUserIds.length > 0) {
       const { data: viewerFollows } = await supabase
         .from('Follow')
         .select('followingId')
         .eq('followerId', viewerDbId)
-        .in('followingId', userIds)
+        .in('followingId', foundUserIds)
       for (const f of (viewerFollows ?? [])) {
         viewerFollowingSet.add(f.followingId)
       }
     }
 
-    const result = (users ?? []).map((u: any) => ({
+    const result = foundUsers.map((u: any) => ({
       id: u.id,
       username: u.username,
       displayName: u.displayName ?? u.username,
@@ -103,6 +122,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ users: result })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch connections'
+    console.error('[connections] Error:', message)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
