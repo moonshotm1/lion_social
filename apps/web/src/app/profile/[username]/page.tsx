@@ -143,6 +143,8 @@ export default function ProfilePage({
     }
     if (!isOwnProfile) {
       setIsFollowing(profileIsFollowing);
+      // Reset to posts tab — likes/favorites are private and not shown for other profiles
+      setActiveTab("posts");
     }
   }, [profileUser?.followers, profileUser?.following, profileIsFollowing, isOwnProfile]);
 
@@ -468,8 +470,10 @@ export default function ProfilePage({
       <div className="flex items-center border-b border-lion-gold/10 mt-4">
         {[
           { id: "posts" as ProfileTab, label: "Posts", icon: Grid3X3 },
-          { id: "likes" as ProfileTab, label: "Likes", icon: Heart },
-          { id: "saved" as ProfileTab, label: "Favorites", icon: Star },
+          ...(isOwnProfile ? [
+            { id: "likes" as ProfileTab, label: "Likes", icon: Heart },
+            { id: "saved" as ProfileTab, label: "Favorites", icon: Star },
+          ] : []),
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

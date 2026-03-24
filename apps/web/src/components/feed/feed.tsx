@@ -37,10 +37,7 @@ export function Feed() {
   const [activeTab, setActiveTab] = useState<FeedTab>("following");
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
-  // "All" means show everything from everyone, not just followed users.
-  // Specific category filters still respect the current tab (following vs explore).
-  const effectiveTab = activeCategory === "all" ? "explore" : activeTab;
-  const { posts: filteredPosts, isLoading } = useFeed(activeCategory, effectiveTab);
+  const { posts: filteredPosts, isLoading } = useFeed(activeCategory, activeTab);
 
   return (
     <div className="space-y-6">

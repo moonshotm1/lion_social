@@ -11,6 +11,10 @@ function getServiceClient() {
   );
 }
 
+function genId() {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+}
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const postId = params.id;
@@ -58,6 +62,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       console.error('[save] insert error:', JSON.stringify(insertErr));
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
+
+    // Notify post owner (fire-and-forget)
+    const now = new Date().toISOString();
+    supabase.from('Post').select('userId').eq('id', postId).single().then(({ data: post }) => {
+      if (post && post.userId !== dbUser.id) {
+        supabase.from('Notification').insert({
+          id: genId(),
+          userId: post.userId,
+          type: 'save',
+          referenceId: `${dbUser.id}:${postId}`,
+          read: false,
+          createdAt: now,
+        });
+      }
+    });
 
     return NextResponse.json({ saved: true });
   } catch (err) {

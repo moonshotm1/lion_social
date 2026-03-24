@@ -64,8 +64,29 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl
     const limit = Math.min(parseInt(searchParams.get('limit') ?? '30'), 50)
     const type = searchParams.get('type')
+    const tab = searchParams.get('tab') ?? 'explore'
 
     const supabase = getSupabase()
+
+    // For the "following" tab, filter posts to only show from users the viewer follows
+    let followedUserIds: string[] | null = null
+    if (tab === 'following') {
+      const auth = req.headers.get('authorization')
+      if (auth?.startsWith('Bearer ')) {
+        try {
+          const { data: { user: authUser } } = await supabase.auth.getUser(auth.slice(7))
+          if (authUser) {
+            const { data: dbUser } = await supabase
+              .from('User').select('id').eq('supabaseId', authUser.id).single()
+            if (dbUser) {
+              const { data: follows } = await supabase
+                .from('Follow').select('followingId').eq('followerId', dbUser.id)
+              followedUserIds = (follows ?? []).map((f: any) => f.followingId)
+            }
+          }
+        } catch { /* fall back to explore */ }
+      }
+    }
 
     let query = supabase
       .from('Post')
@@ -77,6 +98,14 @@ export async function GET(req: NextRequest) {
       query = query.eq('type', type)
     }
 
+    // Following tab: restrict to followed users; if following nobody, return empty
+    if (tab === 'following') {
+      if (!followedUserIds || followedUserIds.length === 0) {
+        return NextResponse.json({ posts: [] })
+      }
+      query = query.in('userId', followedUserIds)
+    }
+
     const { data: posts, error } = await query
     if (error) {
       console.error('[post/feed] Query error:', error.message)
@@ -84,7 +113,6 @@ export async function GET(req: NextRequest) {
     }
 
     const normalized = await normalizePosts(supabase, posts ?? [])
-    console.log(`[post/feed] Returning ${normalized.length} posts`)
     return NextResponse.json({ posts: normalized })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch posts'

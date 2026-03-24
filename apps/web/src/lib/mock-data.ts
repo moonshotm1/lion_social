@@ -74,7 +74,7 @@ export interface MockPost {
 
 export interface MockNotification {
   id: string;
-  type: "like" | "comment" | "follow" | "mention";
+  type: "like" | "comment" | "follow" | "mention" | "save";
   user: MockUser;
   message: string;
   createdAt: string;

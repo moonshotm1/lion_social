@@ -124,6 +124,7 @@ enum NotificationType {
   follow
   like
   comment
+  save
 }
 
 model Invite {
