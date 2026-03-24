@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     if (userIds.length === 0) return NextResponse.json({ users: [] })
 
     // Deduplicate just in case
-    const uniqueIds = [...new Set(userIds)]
+    const uniqueIds = Array.from(new Set(userIds))
 
     // Fetch all matching User records in one query
     const { data: users, error: usersErr } = await supabase
