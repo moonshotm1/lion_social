@@ -93,7 +93,7 @@ export default function ProfilePage({
       .then((r) => r.json())
       .then((data) => { setLikedPosts((data.posts ?? []).map(transformPost)); setLikedLoading(false); })
       .catch(() => setLikedLoading(false));
-  }, [activeTab, profileUser?.id]);
+  }, [activeTab, profileUser?.id, refreshKey]);
 
   // ── Saved posts (fetched when "saved" tab is active) ──
   const [savedPosts, setSavedPosts] = useState<MockPost[]>([]);
@@ -109,7 +109,7 @@ export default function ProfilePage({
       .then((r) => r.json())
       .then((data) => { setSavedPosts((data.posts ?? []).map(transformPost)); setSavedLoading(false); })
       .catch(() => setSavedLoading(false));
-  }, [activeTab, profileUser?.id]);
+  }, [activeTab, profileUser?.id, refreshKey]);
 
   // ── Invite data (fetched for own profile) ──
   const [inviteCode, setInviteCode] = useState<string | null>(null);
