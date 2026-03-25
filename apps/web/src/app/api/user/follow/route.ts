@@ -50,7 +50,11 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (existing) {
-      await supabase.from('Follow').delete().eq('id', existing.id);
+      const { error: deleteError } = await supabase.from('Follow').delete().eq('id', existing.id);
+      if (deleteError) {
+        console.error('[follow] delete error:', deleteError.message);
+        return NextResponse.json({ error: 'Failed to unfollow' }, { status: 500 });
+      }
       // Remove the follow notification so it doesn't linger after unfollow
       await supabase
         .from('Notification')
