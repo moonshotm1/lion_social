@@ -96,16 +96,23 @@ export async function GET(req: NextRequest) {
     }
 
     // Resolve isFollowing for each user (viewer → that user)
+    // For the "following" tab when the viewer IS the profile owner, all users in the
+    // list are already known to be followed — no extra query needed and avoids ID mismatch bugs.
     const foundUserIds = foundUsers.map((u: any) => u.id)
     let viewerFollowingSet = new Set<string>()
     if (viewerDbId && foundUserIds.length > 0) {
-      const { data: viewerFollows } = await supabase
-        .from('Follow')
-        .select('followingId')
-        .eq('followerId', viewerDbId)
-        .in('followingId', foundUserIds)
-      for (const f of (viewerFollows ?? [])) {
-        viewerFollowingSet.add(f.followingId)
+      if (type === 'following' && viewerDbId === userId) {
+        // Viewer is looking at their own following list — they follow everyone here by definition
+        for (const id of foundUserIds) viewerFollowingSet.add(id)
+      } else {
+        const { data: viewerFollows } = await supabase
+          .from('Follow')
+          .select('followingId')
+          .eq('followerId', viewerDbId)
+          .in('followingId', foundUserIds)
+        for (const f of (viewerFollows ?? [])) {
+          viewerFollowingSet.add(f.followingId)
+        }
       }
     }
 
