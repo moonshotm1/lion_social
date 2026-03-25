@@ -63,10 +63,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    // Notify post owner (fire-and-forget)
+    // Notify post owner — skip if notification already exists for this actor+post
     const now = new Date().toISOString();
-    supabase.from('Post').select('userId').eq('id', postId).single().then(({ data: post }) => {
-      if (post && post.userId !== dbUser.id) {
+    supabase.from('Post').select('userId').eq('id', postId).single().then(async ({ data: post }) => {
+      if (!post || post.userId === dbUser.id) return;
+      const { data: existing } = await supabase
+        .from('Notification')
+        .select('id')
+        .eq('userId', post.userId)
+        .eq('type', 'save')
+        .eq('referenceId', `${dbUser.id}:${postId}`)
+        .maybeSingle();
+      if (!existing) {
         supabase.from('Notification').insert({
           id: genId(),
           userId: post.userId,
