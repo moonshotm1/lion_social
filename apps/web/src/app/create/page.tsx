@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback, useRef, useEffect, type ReactNode } from "react";
 import {
   Dumbbell,
   Salad,
@@ -104,6 +104,177 @@ const mealTypes: { value: MealType; label: string }[] = [
   { value: "dinner", label: "Dinner" },
   { value: "snack", label: "Snack" },
 ];
+
+// ─── Autocomplete Data ────────────────────────────────────────────────────────
+
+const WORKOUT_SUGGESTIONS = [
+  // Gym splits
+  "Leg Day", "Push Day", "Pull Day", "Push Pull Legs",
+  "Upper Body", "Lower Body", "Full Body", "Back and Biceps",
+  "Chest and Triceps", "Shoulders and Arms",
+  // Cardio / sports
+  "5K Run", "10K Run", "Half Marathon", "Marathon Training",
+  "Tennis", "Basketball", "Soccer", "Swimming", "Cycling",
+  "Rowing", "Boxing", "Kickboxing", "Yoga", "Pilates",
+  "HIIT", "CrossFit", "Circuit Training",
+  // Other common
+  "Morning Workout", "Evening Workout", "Core Day",
+  "Mobility Work", "Recovery Day", "Deadlift Day",
+  "Squat Day", "Bench Day", "Olympic Lifting",
+];
+
+const INGREDIENT_SUGGESTIONS = [
+  // Proteins
+  "Chicken Breast", "Chicken Thighs", "Ground Beef", "Ground Turkey",
+  "Steak", "Salmon", "Tuna", "Shrimp", "Tilapia", "Cod", "Eggs",
+  "Egg Whites", "Greek Yogurt", "Cottage Cheese", "Tofu", "Tempeh",
+  "Edamame", "Protein Powder", "Whey Protein",
+  // Carbs / Grains
+  "White Rice", "Brown Rice", "Jasmine Rice", "Oats", "Quinoa",
+  "Sweet Potato", "Potato", "Pasta", "Whole Wheat Pasta", "Bread",
+  "Whole Wheat Bread", "Tortilla", "Bagel", "Granola",
+  // Vegetables
+  "Broccoli", "Spinach", "Kale", "Mixed Greens", "Romaine Lettuce",
+  "Arugula", "Bell Pepper", "Cucumber", "Tomato", "Cherry Tomatoes",
+  "Zucchini", "Asparagus", "Green Beans", "Mushrooms", "Onion",
+  "Red Onion", "Garlic", "Carrots", "Celery", "Cauliflower",
+  "Brussels Sprouts", "Corn", "Peas", "Edamame",
+  // Fruits
+  "Banana", "Apple", "Blueberries", "Strawberries", "Raspberries",
+  "Mango", "Pineapple", "Orange", "Avocado", "Lemon", "Lime",
+  // Dairy & Alternatives
+  "Milk", "Almond Milk", "Oat Milk", "Cheddar Cheese", "Mozzarella",
+  "Parmesan", "Feta Cheese", "Butter", "Cream Cheese",
+  // Fats & Nuts
+  "Olive Oil", "Coconut Oil", "Avocado Oil", "Almonds", "Walnuts",
+  "Cashews", "Peanut Butter", "Almond Butter", "Chia Seeds",
+  "Flax Seeds", "Hemp Seeds",
+  // Legumes
+  "Black Beans", "Chickpeas", "Lentils", "Kidney Beans", "White Beans",
+  // Sauces & Seasonings
+  "Soy Sauce", "Hot Sauce", "Sriracha", "Olive Oil", "Balsamic Vinegar",
+  "Honey", "Maple Syrup", "Salt", "Black Pepper", "Cumin", "Paprika",
+  "Garlic Powder", "Onion Powder", "Italian Seasoning",
+];
+
+const EXERCISE_SUGGESTIONS = [
+  // Legs
+  "Barbell Squat", "Front Squat", "Goblet Squat", "Hack Squat",
+  "Romanian Deadlift", "Stiff Leg Deadlift", "Leg Press",
+  "Leg Curl", "Leg Extension", "Walking Lunges", "Bulgarian Split Squat",
+  "Hip Thrust", "Glute Bridge", "Calf Raises",
+  // Back
+  "Deadlift", "Sumo Deadlift", "Pull Up", "Chin Up",
+  "Barbell Row", "Dumbbell Row", "Cable Row", "Lat Pulldown",
+  "Face Pull", "Shrug",
+  // Chest
+  "Bench Press", "Incline Bench Press", "Decline Bench Press",
+  "Dumbbell Fly", "Cable Fly", "Push Up", "Dips",
+  // Shoulders
+  "Overhead Press", "Arnold Press", "Lateral Raise",
+  "Front Raise", "Rear Delt Fly",
+  // Arms
+  "Barbell Curl", "Dumbbell Curl", "Hammer Curl", "Preacher Curl",
+  "Tricep Pushdown", "Skull Crusher", "Close Grip Bench Press",
+  // Core
+  "Plank", "Crunches", "Leg Raise", "Ab Wheel", "Russian Twist",
+];
+
+// ─── Autocomplete Input Component ─────────────────────────────────────────────
+
+function AutocompleteInput({
+  value,
+  onChange,
+  suggestions,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  suggestions: string[];
+  placeholder?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const filtered = value.trim().length > 0
+    ? suggestions.filter((s) =>
+        s.toLowerCase().includes(value.toLowerCase())
+      ).slice(0, 8)
+    : [];
+
+  const shouldShow = open && filtered.length > 0;
+
+  useEffect(() => {
+    setActiveIdx(-1);
+  }, [value]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function select(suggestion: string) {
+    onChange(suggestion);
+    setOpen(false);
+    setActiveIdx(-1);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!shouldShow) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.max(i - 1, -1));
+    } else if (e.key === "Enter" && activeIdx >= 0) {
+      e.preventDefault();
+      select(filtered[activeIdx]);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className={className}
+        autoComplete="off"
+      />
+      {shouldShow && (
+        <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-lion-dark-2 border border-lion-gold/20 rounded-lg shadow-xl overflow-hidden">
+          {filtered.map((s, i) => (
+            <li
+              key={s}
+              onMouseDown={(e) => { e.preventDefault(); select(s); }}
+              className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                i === activeIdx
+                  ? "bg-lion-gold/20 text-lion-gold"
+                  : "text-lion-gray-4 hover:bg-lion-gold/10 hover:text-lion-gold"
+              }`}
+            >
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 // ─── Helper: Image Upload Area ────────────────────────────────────────────────
 
@@ -409,12 +580,12 @@ function WorkoutForm({
     <div className="space-y-5 animate-fade-in">
       {/* Title */}
       <SectionCard title="Workout Details" required>
-        <input
-          type="text"
+        <AutocompleteInput
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={setTitle}
+          suggestions={WORKOUT_SUGGESTIONS}
           placeholder='e.g. "Leg Day", "Push Day", "5K Run"'
-          className="input-dark text-sm"
+          className="input-dark text-sm w-full"
         />
 
         {/* Duration */}
@@ -447,10 +618,10 @@ function WorkoutForm({
                 <div className="w-7 h-7 rounded-lg bg-orange-400/15 flex items-center justify-center shrink-0">
                   <span className="text-xs font-bold text-orange-400">{exIdx + 1}</span>
                 </div>
-                <input
-                  type="text"
+                <AutocompleteInput
                   value={exercise.name}
-                  onChange={(e) => updateExerciseName(exIdx, e.target.value)}
+                  onChange={(val) => updateExerciseName(exIdx, val)}
+                  suggestions={EXERCISE_SUGGESTIONS}
                   placeholder="Exercise name (e.g. Barbell Squat)"
                   className="input-dark text-sm flex-1 !py-2"
                 />
@@ -685,10 +856,10 @@ function MealForm({
         <div className="space-y-2.5">
           {ingredients.map((ingredient, idx) => (
             <div key={idx} className="flex items-center gap-2">
-              <input
-                type="text"
+              <AutocompleteInput
                 value={ingredient.name}
-                onChange={(e) => updateIngredient(idx, "name", e.target.value)}
+                onChange={(val) => updateIngredient(idx, "name", val)}
+                suggestions={INGREDIENT_SUGGESTIONS}
                 placeholder="Ingredient name"
                 className="input-dark text-sm !py-2 flex-1"
               />
