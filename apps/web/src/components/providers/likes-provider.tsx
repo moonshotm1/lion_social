@@ -3,17 +3,23 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockPosts } from "@/lib/mock-data";
-import { createSupabaseBrowserClient } from "@/lib/supabase"; // used only in bootstrap
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 interface LikesContextValue {
   likedIds: Set<string>;
-  /** Updates the local likedIds Set only — no API call. PostCard owns all writes. */
+  savedIds: Set<string>;
+  /** True once the liked/saved post ID fetches have completed (success or failure). */
+  bootstrapped: boolean;
   setLikedId: (postId: string, liked: boolean) => void;
+  setSavedId: (postId: string, saved: boolean) => void;
 }
 
 const LikesContext = createContext<LikesContextValue>({
   likedIds: new Set(),
+  savedIds: new Set(),
+  bootstrapped: false,
   setLikedId: () => {},
+  setSavedId: () => {},
 });
 
 export function useLikes() {
@@ -27,8 +33,14 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
     }
     return new Set();
   });
+  const [savedIds, setSavedIds] = useState<Set<string>>(() => {
+    if (isClientDemoMode) {
+      return new Set(mockPosts.filter((p) => p.isBookmarked).map((p) => p.id));
+    }
+    return new Set();
+  });
+  const [bootstrapped, setBootstrapped] = useState(isClientDemoMode);
 
-  // Bootstrap: fetch all liked post IDs once auth resolves
   useEffect(() => {
     if (isClientDemoMode) return;
 
@@ -37,18 +49,31 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
 
     async function bootstrap(token: string | undefined) {
       if (!token) {
-        if (!cancelled) setLikedIds(new Set());
+        if (!cancelled) {
+          setLikedIds(new Set());
+          setSavedIds(new Set());
+          setBootstrapped(true);
+        }
         return;
       }
       try {
-        const res = await fetch("/api/user/liked-post-ids", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        if (!cancelled) setLikedIds(new Set(data.postIds ?? []));
+        const headers = { Authorization: `Bearer ${token}` };
+        const [likedRes, savedRes] = await Promise.all([
+          fetch("/api/user/liked-post-ids", { headers }),
+          fetch("/api/user/saved-post-ids", { headers }),
+        ]);
+        if (cancelled) return;
+        if (likedRes.ok) {
+          const data = await likedRes.json();
+          if (!cancelled) setLikedIds(new Set(data.postIds ?? []));
+        }
+        if (savedRes.ok) {
+          const data = await savedRes.json();
+          if (!cancelled) setSavedIds(new Set(data.postIds ?? []));
+        }
+        if (!cancelled) setBootstrapped(true);
       } catch {
-        // non-fatal — start with empty set
+        if (!cancelled) setBootstrapped(true);
       }
     }
 
@@ -77,8 +102,17 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setSavedId = useCallback((postId: string, saved: boolean) => {
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      if (saved) next.add(postId);
+      else next.delete(postId);
+      return next;
+    });
+  }, []);
+
   return (
-    <LikesContext.Provider value={{ likedIds, setLikedId }}>
+    <LikesContext.Provider value={{ likedIds, savedIds, bootstrapped, setLikedId, setSavedId }}>
       {children}
     </LikesContext.Provider>
   );

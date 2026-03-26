@@ -4,6 +4,10 @@ export const runtime = 'nodejs';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
+function genId() {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+}
+
 function getServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,10 +52,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ saved: false });
     }
 
-    // Not saved — insert
+    // Not saved — insert with explicit id to avoid null constraint if migration not applied
     const { error: insertErr } = await supabase
       .from('Save')
-      .insert({ userId: dbUser.id, postId });
+      .insert({ id: genId(), userId: dbUser.id, postId });
 
     if (insertErr) {
       if (insertErr.code === '23505') return NextResponse.json({ saved: true });

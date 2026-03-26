@@ -430,17 +430,15 @@ interface PostCardProps {
 
 export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const router = useRouter();
-  const { likedIds, setLikedId } = useLikes();
+  const { likedIds, savedIds, bootstrapped, setLikedId, setSavedId } = useLikes();
   const { trackView } = useViews();
 
   // ── Like state ────────────────────────────────────────────────────────────
-  // post.isLiked comes from the feed route (server-computed) — no async delay.
-  // likedIds.has() catches the case where context is already bootstrapped.
   const [liked, setLiked] = useState(post.isLiked || likedIds.has(post.id));
   const [likeCount, setLikeCount] = useState(post.likes ?? 0);
 
   // ── Star/save state ───────────────────────────────────────────────────────
-  const [starred, setStarred] = useState(post.isBookmarked ?? false);
+  const [starred, setStarred] = useState(post.isBookmarked || savedIds.has(post.id));
   const [starCount, setStarCount] = useState(post.favorites ?? 0);
 
   // ── Other UI state ────────────────────────────────────────────────────────
@@ -455,25 +453,43 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   // Guards to avoid overwriting optimistic counts during in-flight requests
   const pendingLikeRef = useRef(false);
   const pendingStarRef = useRef(false);
+  // Track whether the user has interacted with like/star in this session.
+  // Before interaction, post.isLiked/post.isBookmarked from the feed is used
+  // as a fallback so bootstrap auth failures don't erase correctly loaded state.
+  const likeInteractedRef = useRef(false);
+  const starInteractedRef = useRef(false);
 
-  // Sync liked state when LikesContext bootstraps or changes.
-  // Only trust likedIds — not post.isLiked — so stale feed data doesn't
-  // override a user's unlike before the next poll catches up.
+  // Sync liked state once LikesContext has bootstrapped.
+  // If user hasn't interacted yet: use likedIds OR post.isLiked as fallback.
+  // If user has interacted: trust likedIds only (prevents stale feed from undoing action).
   useEffect(() => {
-    if (!pendingLikeRef.current) {
-      setLiked(likedIds.has(post.id));
+    if (!pendingLikeRef.current && bootstrapped) {
+      if (likeInteractedRef.current) {
+        setLiked(likedIds.has(post.id));
+      } else {
+        setLiked(likedIds.has(post.id) || post.isLiked);
+      }
     }
-  }, [likedIds, post.id]);
-  // Sync counts only from feed polls — not tied to likedIds changes
+  }, [likedIds, post.id, bootstrapped, post.isLiked]);
+
+  // Same pattern for starred — uses savedIds from context with post.isBookmarked fallback.
+  useEffect(() => {
+    if (!pendingStarRef.current && bootstrapped) {
+      if (starInteractedRef.current) {
+        setStarred(savedIds.has(post.id));
+      } else {
+        setStarred(savedIds.has(post.id) || (post.isBookmarked ?? false));
+      }
+    }
+  }, [savedIds, post.id, bootstrapped, post.isBookmarked]);
+
+  // Sync counts only from feed polls
   useEffect(() => {
     if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);
   }, [post.likes]);
   useEffect(() => {
-    if (!pendingStarRef.current) {
-      setStarred(post.isBookmarked ?? false);
-      setStarCount(post.favorites ?? 0);
-    }
-  }, [post.isBookmarked, post.favorites]);
+    if (!pendingStarRef.current) setStarCount(post.favorites ?? 0);
+  }, [post.favorites]);
   useEffect(() => {
     setCommentCount(post.comments);
   }, [post.comments]);
@@ -519,6 +535,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     const newLiked = !prevLiked;
 
     // Optimistic update
+    likeInteractedRef.current = true;
     pendingLikeRef.current = true;
     setLiked(newLiked);
     setLikeCount(newLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
@@ -537,6 +554,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       const res = await fetch(`/api/post/${post.id}/like`, {
         method: "POST",
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        keepalive: true,
       });
       if (!res.ok) throw new Error("Like request failed");
       const data = await res.json();
@@ -563,6 +581,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     const newStarred = !prevStarred;
 
     // Optimistic update
+    starInteractedRef.current = true;
     pendingStarRef.current = true;
     setStarred(newStarred);
     setStarCount(newStarred ? prevCount + 1 : Math.max(0, prevCount - 1));
@@ -577,6 +596,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       const res = await fetch(`/api/post/${post.id}/save`, {
         method: "POST",
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        keepalive: true,
       });
       if (!res.ok) throw new Error("Save failed");
       const data = await res.json();
@@ -586,6 +606,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
         setStarred(serverSaved);
         setStarCount(serverSaved ? prevCount + 1 : Math.max(0, prevCount - 1));
       }
+      setSavedId(post.id, serverSaved);
     } catch {
       // Revert
       setStarred(prevStarred);

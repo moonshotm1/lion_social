@@ -52,10 +52,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ liked: false });
     }
 
-    // Not liked — insert
+    // Not liked — insert with explicit id to avoid null constraint if migration not applied
     const { error: insertErr } = await supabase
       .from('Like')
-      .insert({ userId: dbUser.id, postId });
+      .insert({ id: genId(), userId: dbUser.id, postId });
 
     if (insertErr) {
       // 23505 = unique_violation: race condition, treat as liked
