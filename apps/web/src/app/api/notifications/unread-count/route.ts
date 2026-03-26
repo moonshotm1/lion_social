@@ -27,13 +27,14 @@ export async function GET() {
 
     if (!dbUser) return NextResponse.json({ count: 0 });
 
-    const { count } = await supabase
+    // Use row fetch instead of head:true — head count returns null in some Supabase configs
+    const { data: rows } = await supabase
       .from("Notification")
-      .select("id", { count: "exact", head: true })
+      .select("id")
       .eq("userId", (dbUser as any).id)
       .eq("read", false);
 
-    return NextResponse.json({ count: count ?? 0 });
+    return NextResponse.json({ count: rows?.length ?? 0 });
   } catch (err) {
     console.error("[notifications/unread-count] Error:", err);
     return NextResponse.json({ count: 0 });

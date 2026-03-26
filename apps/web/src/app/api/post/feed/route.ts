@@ -84,7 +84,6 @@ export async function GET(req: NextRequest) {
     }
 
     const normalized = await normalizePosts(supabase, posts ?? [])
-    console.log(`[post/feed] Returning ${normalized.length} posts`)
     return NextResponse.json({ posts: normalized })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch posts'

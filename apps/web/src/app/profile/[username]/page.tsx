@@ -39,6 +39,7 @@ export default function ProfilePage({
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [showConnections, setShowConnections] = useState(false);
   const [connectionsTab, setConnectionsTab] = useState<"followers" | "following">("followers");
   const [showMenu, setShowMenu] = useState(false);
@@ -66,7 +67,13 @@ export default function ProfilePage({
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
-  const { user: profileUser, posts: userPosts, isFollowing: profileIsFollowing, isLoading } = useUserProfile(resolvedUsername, refreshKey);
+  useEffect(() => {
+    const handler = () => setRefreshKey((k) => k + 1);
+    window.addEventListener('lion:post-deleted', handler);
+    return () => window.removeEventListener('lion:post-deleted', handler);
+  }, []);
+
+  const { user: profileUser, posts: userPosts, isFollowing: profileIsFollowing, isLoading, refreshCounts } = useUserProfile(resolvedUsername, refreshKey);
 
   const isOwnProfile =
     !!currentUser &&
@@ -86,7 +93,7 @@ export default function ProfilePage({
       .then((r) => r.json())
       .then((data) => { setLikedPosts((data.posts ?? []).map(transformPost)); setLikedLoading(false); })
       .catch(() => setLikedLoading(false));
-  }, [activeTab, profileUser?.id]);
+  }, [activeTab, profileUser?.id, refreshKey]);
 
   // ── Saved posts (fetched when "saved" tab is active) ──
   const [savedPosts, setSavedPosts] = useState<MockPost[]>([]);
@@ -102,7 +109,7 @@ export default function ProfilePage({
       .then((r) => r.json())
       .then((data) => { setSavedPosts((data.posts ?? []).map(transformPost)); setSavedLoading(false); })
       .catch(() => setSavedLoading(false));
-  }, [activeTab, profileUser?.id]);
+  }, [activeTab, profileUser?.id, refreshKey]);
 
   // ── Invite data (fetched for own profile) ──
   const [inviteCode, setInviteCode] = useState<string | null>(null);
@@ -126,15 +133,21 @@ export default function ProfilePage({
       .catch(() => {});
   }, [isOwnProfile]);
 
-  // Sync follow state and followers count from profile data (resolved server-side)
+  // Sync counts from server on every background refresh
   useEffect(() => {
-    if (profileUser?.followers !== undefined) {
-      setFollowersCount(profileUser.followers);
-    }
+    if (profileUser?.followers !== undefined) setFollowersCount(profileUser.followers);
+    if (profileUser?.following !== undefined) setFollowingCount(profileUser.following);
+  }, [profileUser?.followers, profileUser?.following]);
+
+  // Sync isFollowing and reset tab only when the profile user changes (not on background polls)
+  // Using profileUser?.id as dep prevents background refreshes from overriding optimistic state
+  useEffect(() => {
     if (!isOwnProfile) {
       setIsFollowing(profileIsFollowing);
+      // Reset to posts tab — likes/favorites are private and not shown for other profiles
+      setActiveTab("posts");
     }
-  }, [profileUser?.followers, profileIsFollowing, isOwnProfile]);
+  }, [profileUser?.id, isOwnProfile]);
 
   const handleFollow = async () => {
     if (!profileUser?.id || followLoading) return;
@@ -166,8 +179,8 @@ export default function ProfilePage({
       setFollowersCount((prev) => (willFollow ? Math.max(0, prev - 1) : prev + 1));
     } finally {
       setFollowLoading(false);
-      // Refresh counts from server shortly after the DB write completes
-      setTimeout(() => setRefreshKey((k) => k + 1), 800);
+      // Background-refresh counts from server without clearing posts or showing a spinner
+      setTimeout(() => refreshCounts(), 800);
     }
   };
 
@@ -393,7 +406,7 @@ export default function ProfilePage({
             onClick={() => { setConnectionsTab("following"); setShowConnections(true); }}
           >
             <p className="text-lg font-bold text-lion-white">
-              {formatCount(user.following)}
+              {formatCount(followingCount)}
             </p>
             <p className="text-xs text-lion-gray-3">Following</p>
           </button>
@@ -458,8 +471,10 @@ export default function ProfilePage({
       <div className="flex items-center border-b border-lion-gold/10 mt-4">
         {[
           { id: "posts" as ProfileTab, label: "Posts", icon: Grid3X3 },
-          { id: "likes" as ProfileTab, label: "Likes", icon: Heart },
-          { id: "saved" as ProfileTab, label: "Favorites", icon: Star },
+          ...(isOwnProfile ? [
+            { id: "likes" as ProfileTab, label: "Likes", icon: Heart },
+            { id: "saved" as ProfileTab, label: "Favorites", icon: Star },
+          ] : []),
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -541,11 +556,11 @@ export default function ProfilePage({
           userId={profileUser.id}
           initialTab={connectionsTab}
           followersCount={followersCount}
-          followingCount={user.following}
+          followingCount={followingCount}
           onClose={() => {
             setShowConnections(false);
-            // Trigger a profile refresh so counts are accurate after follow/unfollow in modal
-            setTimeout(() => setRefreshKey((k) => k + 1), 500);
+            // Background-refresh counts after follow/unfollow in modal
+            setTimeout(() => refreshCounts(), 500);
           }}
         />
       )}

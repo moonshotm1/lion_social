@@ -33,7 +33,9 @@ export async function GET(request: Request) {
         });
       }
 
-      return NextResponse.redirect(`${origin}${next}`);
+      // If there's a specific next destination use it, otherwise show the verified page
+      const destination = next !== "/" ? next : "/auth/verified";
+      return NextResponse.redirect(`${origin}${destination}`);
     }
   }
 

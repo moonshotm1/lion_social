@@ -97,3 +97,44 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const postId = params.id;
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Require auth
+    const auth = req.headers.get('authorization');
+    if (!auth?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    const token = auth.slice(7);
+    const { data: { user: authUser } } = await supabase.auth.getUser(token);
+    if (!authUser) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
+    // Resolve DB user
+    const { data: dbUser } = await supabase
+      .from('User').select('id').eq('supabaseId', authUser.id).single();
+    if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+    // Verify ownership
+    const { data: post } = await supabase
+      .from('Post').select('userId').eq('id', postId).single();
+    if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    if (post.userId !== dbUser.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Delete the post (cascade deletes likes, comments, saves via FK)
+    const { error } = await supabase.from('Post').delete().eq('id', postId);
+    if (error) throw error;
+
+    return NextResponse.json({ deleted: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to delete post';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockUsers, mockPosts } from "@/lib/mock-data";
 import { transformUser, transformPost } from "@/lib/transforms";
@@ -13,13 +13,15 @@ interface UseUserProfileResult {
   isFollowing: boolean;
   isLoading: boolean;
   error: unknown;
+  /** Background-refresh counts without clearing posts or showing a spinner */
+  refreshCounts: () => void;
 }
 
 function useUserProfileDemo(username: string, _refreshKey?: number): UseUserProfileResult {
   const user =
     mockUsers.find((u) => u.username === username) ?? mockUsers[0];
   const posts = mockPosts.filter((p) => p.author.id === user.id);
-  return { user, posts, isFollowing: false, isLoading: false, error: null };
+  return { user, posts, isFollowing: false, isLoading: false, error: null, refreshCounts: () => {} };
 }
 
 function useUserProfileReal(username: string, refreshKey?: number): UseUserProfileResult {
@@ -28,6 +30,10 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
   const [isFollowing, setIsFollowing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+
+  // Stable ref to the background load function so callers can trigger it without
+  // causing a full effect re-run (which would clear user state and show a spinner).
+  const bgLoadRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (!username) return;
@@ -94,6 +100,9 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
       }
     }
 
+    // Keep the ref up-to-date so refreshCounts() always calls the active closure
+    bgLoadRef.current = () => { if (!cancelled) load(true); };
+
     load(false);
 
     // Fallback: poll every 10s in case realtime isn't available
@@ -101,7 +110,6 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
 
     // Realtime: subscribe to Follow table changes for this profile user.
     // Fires immediately when anyone follows/unfollows — much faster than polling.
-    // We use a channel name unique to the username; once we have the DB id we filter by it.
     const channelName = `profile-follows-${username}`;
     let realtimeReady = false;
 
@@ -142,9 +150,11 @@ function useUserProfileReal(username: string, refreshKey?: number): UseUserProfi
         supabase.channel(channelName).unsubscribe();
       }
     };
-  }, [username, refreshKey]); // refreshKey triggers a full re-fetch
+  }, [username, refreshKey]); // refreshKey triggers a full re-fetch (posts included)
 
-  return { user, posts, isFollowing, isLoading, error };
+  const refreshCounts = useCallback(() => { bgLoadRef.current(); }, []);
+
+  return { user, posts, isFollowing, isLoading, error, refreshCounts };
 }
 
 export const useUserProfile = isClientDemoMode

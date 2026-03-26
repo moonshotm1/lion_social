@@ -9,6 +9,7 @@ import {
   MessageCircle,
   UserPlus,
   AtSign,
+  Star,
   Check,
   CheckCheck,
   UserCheck,
@@ -23,6 +24,7 @@ const notificationIcons: Record<MockNotification["type"], React.ElementType> = {
   comment: MessageCircle,
   follow: UserPlus,
   mention: AtSign,
+  save: Star,
 };
 
 const notificationColors: Record<MockNotification["type"], string> = {
@@ -30,6 +32,7 @@ const notificationColors: Record<MockNotification["type"], string> = {
   comment: "text-blue-400 bg-blue-400/10",
   follow: "text-lion-gold bg-lion-gold/10",
   mention: "text-purple-400 bg-purple-400/10",
+  save: "text-yellow-400 bg-yellow-400/10",
 };
 
 export default function NotificationsPage() {
@@ -147,14 +150,20 @@ export default function NotificationsPage() {
           const actorId = notification.user.id;
           const isFollowingBack = followingSet.has(actorId);
           const isFollowLoading = followLoadingSet.has(actorId);
+          // Where tapping the card navigates
+          const cardHref =
+            (notification.type === "like" || notification.type === "comment" || notification.type === "save") && notification.postId
+              ? `/post/${notification.postId}`
+              : `/profile/${notification.user.username}`;
 
           return (
-            <div
+            <Link
               key={notification.id}
+              href={cardHref}
               onClick={() => markRead(notification.id)}
               className={`
                 relative flex items-start gap-3 p-4 rounded-xl
-                transition-all duration-200 cursor-pointer
+                transition-all duration-200
                 ${
                   notification.read
                     ? "bg-transparent hover:bg-lion-dark-2"
@@ -188,13 +197,9 @@ export default function NotificationsPage() {
               {/* Content */}
               <div className="flex-1 min-w-0 pt-0.5">
                 <p className="text-sm leading-relaxed">
-                  <Link
-                    href={`/profile/${notification.user.username}`}
-                    className="font-semibold text-lion-white hover:text-lion-gold transition-colors duration-200"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <span className="font-semibold text-lion-white">
                     {notification.user.displayName}
-                  </Link>{" "}
+                  </span>{" "}
                   <span className="text-lion-gray-4">
                     {notification.message}
                   </span>
@@ -229,7 +234,7 @@ export default function NotificationsPage() {
                   )}
                 </button>
               )}
-            </div>
+            </Link>
           );
         })}
       </div>

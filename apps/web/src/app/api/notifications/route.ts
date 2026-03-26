@@ -56,7 +56,8 @@ export async function GET() {
       const message =
         n.type === 'like' ? 'liked your post' :
         n.type === 'comment' ? 'commented on your post' :
-        n.type === 'follow' ? 'started following you' : '';
+        n.type === 'follow' ? 'started following you' :
+        n.type === 'save' ? 'favorited your post' : '';
 
       return {
         id: n.id,
