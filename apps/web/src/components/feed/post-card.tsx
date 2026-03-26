@@ -33,11 +33,21 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 
 // ─── Comment types ──────────────────────────────────────────────────────────
 
+interface InlineReply {
+  id: string;
+  content: string;
+  createdAt: string;
+  parentId: string;
+  user: { id: string; username: string; avatarUrl: string | null };
+}
+
 interface InlineComment {
   id: string;
   content: string;
   createdAt: string;
+  parentId: null;
   user: { id: string; username: string; avatarUrl: string | null };
+  replies: InlineReply[];
 }
 
 // ─── Inline comment section ─────────────────────────────────────────────────
@@ -56,7 +66,11 @@ function InlineComments({
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [submittingReply, setSubmittingReply] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
     if (loaded || isClientDemoMode) return;
@@ -78,18 +92,19 @@ function InlineComments({
     load();
   }
 
+  const reloadComments = async () => {
+    const res = await fetch(`/api/post/${postId}/comment`);
+    if (res.ok) {
+      const data = await res.json();
+      setComments(data.comments ?? []);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed || submitting || isClientDemoMode) return;
     setSubmitting(true);
-    const optimistic: InlineComment = {
-      id: `opt-${Date.now()}`,
-      content: trimmed,
-      createdAt: new Date().toISOString(),
-      user: { id: "", username: "you", avatarUrl: null },
-    };
-    setComments((prev) => [...prev, optimistic]);
     onCountChange(initialCount + 1);
     setText("");
     try {
@@ -103,27 +118,38 @@ function InlineComments({
         body: JSON.stringify({ content: trimmed }),
       });
       if (res.ok) {
-        const saved = await res.json();
-        // Replace optimistic with real comment (no user info returned, reload)
-        const reload = await fetch(`/api/post/${postId}/comment`);
-        if (reload.ok) {
-          const data = await reload.json();
-          setComments(data.comments ?? []);
-        } else {
-          setComments((prev) =>
-            prev.map((c) => (c.id === optimistic.id ? { ...optimistic, id: saved.id } : c))
-          );
-        }
+        await reloadComments();
       } else {
-        // Revert on error
-        setComments((prev) => prev.filter((c) => c.id !== optimistic.id));
         onCountChange(initialCount);
       }
     } catch {
-      setComments((prev) => prev.filter((c) => c.id !== optimistic.id));
       onCountChange(initialCount);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleReplySubmit = async (parentId: string) => {
+    const trimmed = replyText.trim();
+    if (!trimmed || submittingReply || isClientDemoMode) return;
+    setSubmittingReply(true);
+    setReplyText("");
+    setReplyingToId(null);
+    try {
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+      const res = await fetch(`/api/post/${postId}/comment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ content: trimmed, parentId }),
+      });
+      if (res.ok) {
+        await reloadComments();
+      }
+    } finally {
+      setSubmittingReply(false);
     }
   };
 
@@ -131,6 +157,17 @@ function InlineComments({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e as unknown as React.FormEvent);
+    }
+  };
+
+  const handleReplyKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, parentId: string) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleReplySubmit(parentId);
+    }
+    if (e.key === "Escape") {
+      setReplyingToId(null);
+      setReplyText("");
     }
   };
 
@@ -144,39 +181,109 @@ function InlineComments({
       ) : comments.length === 0 ? (
         <p className="text-xs text-lion-gray-2 text-center py-4">No comments yet. Be the first!</p>
       ) : (
-        <div className="divide-y divide-lion-gold/5 max-h-64 overflow-y-auto">
+        <div className="divide-y divide-lion-gold/5 max-h-80 overflow-y-auto">
           {comments.map((c) => {
             const avatar =
               c.user.avatarUrl ??
               `https://api.dicebear.com/9.x/avataaars/svg?seed=${c.user.username}`;
             return (
-              <div key={c.id} className="flex gap-2.5 px-4 py-3">
-                <Link href={`/profile/${c.user.username}`} className="shrink-0">
-                  <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-lion-gold/20">
-                    <Image src={avatar} alt={c.user.username} width={28} height={28} className="w-full h-full object-cover" />
-                  </div>
-                </Link>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-1.5 mb-0.5">
-                    <Link
-                      href={`/profile/${c.user.username}`}
-                      className="text-xs font-semibold text-lion-white hover:text-lion-gold transition-colors"
+              <div key={c.id}>
+                {/* Top-level comment */}
+                <div className="flex gap-2.5 px-4 py-3">
+                  <Link href={`/profile/${c.user.username}`} className="shrink-0">
+                    <div className="w-7 h-7 rounded-full overflow-hidden ring-1 ring-lion-gold/20">
+                      <Image src={avatar} alt={c.user.username} width={28} height={28} className="w-full h-full object-cover" />
+                    </div>
+                  </Link>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-1.5 mb-0.5">
+                      <Link
+                        href={`/profile/${c.user.username}`}
+                        className="text-xs font-semibold text-lion-white hover:text-lion-gold transition-colors"
+                      >
+                        {c.user.username}
+                      </Link>
+                      <span className="text-[10px] text-lion-gray-2" suppressHydrationWarning>
+                        {getTimeAgo(c.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-lion-gray-4 leading-relaxed">{c.content}</p>
+                    {/* Reply button */}
+                    <button
+                      onClick={() => {
+                        setReplyingToId(replyingToId === c.id ? null : c.id);
+                        setReplyText("");
+                        setTimeout(() => replyTextareaRef.current?.focus(), 50);
+                      }}
+                      className="mt-1 text-[10px] font-medium text-lion-gray-3 hover:text-lion-gold transition-colors"
                     >
-                      {c.user.username}
-                    </Link>
-                    <span className="text-[10px] text-lion-gray-2" suppressHydrationWarning>
-                      {getTimeAgo(c.createdAt)}
-                    </span>
+                      Reply
+                    </button>
                   </div>
-                  <p className="text-sm text-lion-gray-4 leading-relaxed">{c.content}</p>
                 </div>
+
+                {/* Replies */}
+                {c.replies.length > 0 && (
+                  <div className="ml-10 border-l border-lion-gold/10 pl-3 pb-1">
+                    {c.replies.map((r) => {
+                      const replyAvatar =
+                        r.user.avatarUrl ??
+                        `https://api.dicebear.com/9.x/avataaars/svg?seed=${r.user.username}`;
+                      return (
+                        <div key={r.id} className="flex gap-2 py-2 pr-4">
+                          <Link href={`/profile/${r.user.username}`} className="shrink-0">
+                            <div className="w-6 h-6 rounded-full overflow-hidden ring-1 ring-lion-gold/15">
+                              <Image src={replyAvatar} alt={r.user.username} width={24} height={24} className="w-full h-full object-cover" />
+                            </div>
+                          </Link>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-1.5 mb-0.5">
+                              <Link
+                                href={`/profile/${r.user.username}`}
+                                className="text-xs font-semibold text-lion-white hover:text-lion-gold transition-colors"
+                              >
+                                {r.user.username}
+                              </Link>
+                              <span className="text-[10px] text-lion-gray-2" suppressHydrationWarning>
+                                {getTimeAgo(r.createdAt)}
+                              </span>
+                            </div>
+                            <p className="text-sm text-lion-gray-4 leading-relaxed">{r.content}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Inline reply input */}
+                {replyingToId === c.id && (
+                  <div className="ml-10 pr-4 pb-3 flex items-end gap-2">
+                    <textarea
+                      ref={replyTextareaRef}
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => handleReplyKeyDown(e, c.id)}
+                      placeholder={`Reply to ${c.user.username}… (Enter to send, Esc to cancel)`}
+                      rows={1}
+                      className="flex-1 resize-none bg-lion-dark-3 border border-lion-gold/10 rounded-xl px-3 py-2 text-sm text-lion-white placeholder:text-lion-gray-3 focus:outline-none focus:border-lion-gold/30 focus:ring-1 focus:ring-lion-gold/20 transition-colors max-h-20 overflow-y-auto"
+                    />
+                    <button
+                      onClick={() => handleReplySubmit(c.id)}
+                      disabled={!replyText.trim() || submittingReply}
+                      className="p-2 rounded-xl bg-gold-gradient text-lion-black disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-gold-sm flex-shrink-0"
+                    >
+                      <Send className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Input */}
+      {/* New comment input */}
       <form
         onSubmit={handleSubmit}
         className="flex items-end gap-2 px-4 py-3 border-t border-lion-gold/8"
@@ -434,7 +541,7 @@ interface PostCardProps {
 
 export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const router = useRouter();
-  const { likedIds, setLikedId } = useLikes();
+  const { likedIds, savedIds, setLikedId, setSavedId } = useLikes();
   const { trackView } = useViews();
   const { user: currentUser } = useCurrentUser();
   const isOwnPost = !!currentUser && currentUser.username === post.author.username;
@@ -446,7 +553,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const [likeCount, setLikeCount] = useState(post.likes ?? 0);
 
   // ── Star/save state ───────────────────────────────────────────────────────
-  const [starred, setStarred] = useState(post.isBookmarked ?? false);
+  const [starred, setStarred] = useState(savedIds.has(post.id) || (post.isBookmarked ?? false));
   const [starCount, setStarCount] = useState(post.favorites ?? 0);
 
   // ── Other UI state ────────────────────────────────────────────────────────
@@ -468,6 +575,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   // Guards to avoid overwriting optimistic counts during in-flight requests
   const pendingLikeRef = useRef(false);
   const pendingStarRef = useRef(false);
+  const pendingCommentRef = useRef(false);
 
   // Sync liked state when LikesContext bootstraps or changes.
   // Only trust likedIds — not post.isLiked — so stale feed data doesn't
@@ -481,14 +589,17 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   useEffect(() => {
     if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);
   }, [post.likes]);
+  // Sync starred from savedIds context (same pattern as liked/likedIds)
   useEffect(() => {
     if (!pendingStarRef.current) {
-      setStarred(post.isBookmarked ?? false);
-      setStarCount(post.favorites ?? 0);
+      setStarred(savedIds.has(post.id));
     }
-  }, [post.isBookmarked, post.favorites]);
+  }, [savedIds, post.id]);
   useEffect(() => {
-    setCommentCount(post.comments);
+    if (!pendingStarRef.current) setStarCount(post.favorites ?? 0);
+  }, [post.favorites]);
+  useEffect(() => {
+    if (!pendingCommentRef.current) setCommentCount(post.comments);
   }, [post.comments]);
 
   // Track view via IntersectionObserver — only fires when post is actually visible,
@@ -640,6 +751,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
         setStarred(serverSaved);
         setStarCount(serverSaved ? prevCount + 1 : Math.max(0, prevCount - 1));
       }
+      setSavedId(post.id, serverSaved);
     } catch {
       // Revert
       setStarred(prevStarred);
@@ -964,7 +1076,12 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
         <InlineComments
           postId={post.id}
           initialCount={commentCount}
-          onCountChange={setCommentCount}
+          onCountChange={(n) => {
+            pendingCommentRef.current = true;
+            setCommentCount(n);
+            // Allow prop sync to resume after next poll cycle
+            setTimeout(() => { pendingCommentRef.current = false; }, 5000);
+          }}
         />
       )}
     </article>

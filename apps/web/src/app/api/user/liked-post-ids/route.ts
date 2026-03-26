@@ -25,17 +25,23 @@ export async function GET(req: NextRequest) {
       .single();
     if (!appUser) return NextResponse.json({ postIds: [] });
 
-    const { data: likes, error } = await supabase
-      .from("Like")
-      .select("postId")
-      .eq("userId", appUser.id);
+    const [{ data: likes, error: likesError }, { data: saves, error: savesError }] = await Promise.all([
+      supabase.from("Like").select("postId").eq("userId", appUser.id),
+      supabase.from("Save").select("postId").eq("userId", appUser.id),
+    ]);
 
-    if (error) {
-      console.error("[liked-post-ids] query error:", error.message);
-      return NextResponse.json({ postIds: [] });
+    if (likesError) {
+      console.error("[liked-post-ids] likes query error:", likesError.message);
+      return NextResponse.json({ postIds: [], savedPostIds: [] });
+    }
+    if (savesError) {
+      console.error("[liked-post-ids] saves query error:", savesError.message);
     }
 
-    return NextResponse.json({ postIds: (likes ?? []).map((l: any) => l.postId) });
+    return NextResponse.json({
+      postIds: (likes ?? []).map((l: any) => l.postId),
+      savedPostIds: (saves ?? []).map((s: any) => s.postId),
+    });
   } catch (err) {
     console.error("[liked-post-ids] threw:", err);
     return NextResponse.json({ postIds: [] });

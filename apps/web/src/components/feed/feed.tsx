@@ -37,7 +37,7 @@ export function Feed() {
   const [activeTab, setActiveTab] = useState<FeedTab>("following");
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
-  const { posts: filteredPosts, isLoading } = useFeed(activeCategory, activeTab);
+  const { posts: filteredPosts, isLoading, isLoadingMore, hasNextPage, fetchNextPage } = useFeed(activeCategory, activeTab);
 
   return (
     <div className="space-y-6">
@@ -169,20 +169,32 @@ export function Feed() {
         )}
       </div>
 
-      {/* End of Feed */}
-      <div className="text-center py-12">
-        <div className="inline-flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-lion-gold/10 flex items-center justify-center">
-            <Crown className="w-6 h-6 text-lion-gold" />
-          </div>
-          <p className="text-sm text-lion-gray-3 font-medium">
-            You&apos;re all caught up
-          </p>
-          <p className="text-xs text-lion-gray-2">
-            Follow more people to fill your feed
-          </p>
+      {/* Load More / End of Feed */}
+      {!isLoading && filteredPosts.length > 0 && (
+        <div className="text-center py-8">
+          {hasNextPage ? (
+            <button
+              onClick={fetchNextPage}
+              disabled={isLoadingMore}
+              className="px-6 py-2.5 rounded-xl text-sm font-semibold btn-gold disabled:opacity-50"
+            >
+              {isLoadingMore ? "Loading..." : "Load More"}
+            </button>
+          ) : (
+            <div className="inline-flex flex-col items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-lion-gold/10 flex items-center justify-center">
+                <Crown className="w-6 h-6 text-lion-gold" />
+              </div>
+              <p className="text-sm text-lion-gray-3 font-medium">
+                You&apos;re all caught up
+              </p>
+              <p className="text-xs text-lion-gray-2">
+                Follow more people to fill your feed
+              </p>
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

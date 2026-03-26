@@ -3,17 +3,22 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockPosts } from "@/lib/mock-data";
-import { createSupabaseBrowserClient } from "@/lib/supabase"; // used only in bootstrap
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 interface LikesContextValue {
   likedIds: Set<string>;
+  savedIds: Set<string>;
   /** Updates the local likedIds Set only — no API call. PostCard owns all writes. */
   setLikedId: (postId: string, liked: boolean) => void;
+  /** Updates the local savedIds Set only — no API call. PostCard owns all writes. */
+  setSavedId: (postId: string, saved: boolean) => void;
 }
 
 const LikesContext = createContext<LikesContextValue>({
   likedIds: new Set(),
+  savedIds: new Set(),
   setLikedId: () => {},
+  setSavedId: () => {},
 });
 
 export function useLikes() {
@@ -28,7 +33,14 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
     return new Set();
   });
 
-  // Bootstrap: fetch all liked post IDs once auth resolves
+  const [savedIds, setSavedIds] = useState<Set<string>>(() => {
+    if (isClientDemoMode) {
+      return new Set(mockPosts.filter((p) => p.isBookmarked).map((p) => p.id));
+    }
+    return new Set();
+  });
+
+  // Bootstrap: fetch all liked + saved post IDs once auth resolves
   useEffect(() => {
     if (isClientDemoMode) return;
 
@@ -37,7 +49,10 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
 
     async function bootstrap(token: string | undefined) {
       if (!token) {
-        if (!cancelled) setLikedIds(new Set());
+        if (!cancelled) {
+          setLikedIds(new Set());
+          setSavedIds(new Set());
+        }
         return;
       }
       try {
@@ -46,9 +61,12 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
         });
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (!cancelled) setLikedIds(new Set(data.postIds ?? []));
+        if (!cancelled) {
+          setLikedIds(new Set(data.postIds ?? []));
+          setSavedIds(new Set(data.savedPostIds ?? []));
+        }
       } catch {
-        // non-fatal — start with empty set
+        // non-fatal — start with empty sets
       }
     }
 
@@ -77,8 +95,17 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setSavedId = useCallback((postId: string, saved: boolean) => {
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      if (saved) next.add(postId);
+      else next.delete(postId);
+      return next;
+    });
+  }, []);
+
   return (
-    <LikesContext.Provider value={{ likedIds, setLikedId }}>
+    <LikesContext.Provider value={{ likedIds, savedIds, setLikedId, setSavedId }}>
       {children}
     </LikesContext.Provider>
   );
