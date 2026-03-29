@@ -80,8 +80,15 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Only bootstrap from getSession if we already have a token — avoids
+    // calling bootstrap(undefined) before Supabase has restored the session
+    // from localStorage, which would flash-clear liked/saved state.
+    // onAuthStateChange fires INITIAL_SESSION for every user (logged-in or
+    // not) and is the authoritative source for "no user confirmed".
     supabase.auth.getSession().then(({ data: { session } }) => {
-      bootstrap(session?.access_token);
+      if (session?.access_token) {
+        bootstrap(session.access_token);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
