@@ -8,6 +8,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 interface LikesContextValue {
   likedIds: Set<string>;
   savedIds: Set<string>;
+  /** True once the user's liked/saved IDs have been fetched from the server. */
+  bootstrapped: boolean;
   /** Updates the local likedIds Set only — no API call. PostCard owns all writes. */
   setLikedId: (postId: string, liked: boolean) => void;
   /** Updates the local savedIds Set only — no API call. PostCard owns all writes. */
@@ -17,6 +19,7 @@ interface LikesContextValue {
 const LikesContext = createContext<LikesContextValue>({
   likedIds: new Set(),
   savedIds: new Set(),
+  bootstrapped: false,
   setLikedId: () => {},
   setSavedId: () => {},
 });
@@ -40,6 +43,10 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
     return new Set();
   });
 
+  // True once the server has responded — prevents sync effects from
+  // flashing the wrong state while the empty initial Sets are in place.
+  const [bootstrapped, setBootstrapped] = useState(isClientDemoMode);
+
   // Bootstrap: fetch all liked + saved post IDs once auth resolves
   useEffect(() => {
     if (isClientDemoMode) return;
@@ -52,6 +59,7 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           setLikedIds(new Set());
           setSavedIds(new Set());
+          setBootstrapped(true);
         }
         return;
       }
@@ -64,9 +72,11 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           setLikedIds(new Set(data.postIds ?? []));
           setSavedIds(new Set(data.savedPostIds ?? []));
+          setBootstrapped(true);
         }
       } catch {
-        // non-fatal — start with empty sets
+        // non-fatal — start with empty sets, but still mark as done
+        if (!cancelled) setBootstrapped(true);
       }
     }
 
@@ -105,7 +115,7 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <LikesContext.Provider value={{ likedIds, savedIds, setLikedId, setSavedId }}>
+    <LikesContext.Provider value={{ likedIds, savedIds, bootstrapped, setLikedId, setSavedId }}>
       {children}
     </LikesContext.Provider>
   );

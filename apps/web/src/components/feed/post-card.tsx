@@ -541,7 +541,7 @@ interface PostCardProps {
 
 export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const router = useRouter();
-  const { likedIds, savedIds, setLikedId, setSavedId } = useLikes();
+  const { likedIds, savedIds, bootstrapped, setLikedId, setSavedId } = useLikes();
   const { trackView } = useViews();
   const { user: currentUser } = useCurrentUser();
   const isOwnPost = !!currentUser && currentUser.username === post.author.username;
@@ -559,6 +559,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   // ── Other UI state ────────────────────────────────────────────────────────
   const [isCopied, setIsCopied] = useState(false);
   const [isAnimatingLike, setIsAnimatingLike] = useState(false);
+  const [isAnimatingStar, setIsAnimatingStar] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments);
   const [viewCount, setViewCount] = useState(post.views);
@@ -577,24 +578,24 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const pendingStarRef = useRef(false);
   const pendingCommentRef = useRef(false);
 
-  // Sync liked state when LikesContext bootstraps or changes.
-  // Only trust likedIds — not post.isLiked — so stale feed data doesn't
-  // override a user's unlike before the next poll catches up.
+  // Sync liked state once the context has bootstrapped with server data.
+  // Gated on `bootstrapped` so the empty initial Set doesn't flash-clear
+  // the post.isLiked value that the feed already provided.
   useEffect(() => {
-    if (!pendingLikeRef.current) {
+    if (bootstrapped && !pendingLikeRef.current) {
       setLiked(likedIds.has(post.id));
     }
-  }, [likedIds, post.id]);
+  }, [likedIds, post.id, bootstrapped]);
   // Sync counts only from feed polls — not tied to likedIds changes
   useEffect(() => {
     if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);
   }, [post.likes]);
-  // Sync starred from savedIds context (same pattern as liked/likedIds)
+  // Sync starred from savedIds context — same bootstrap gate as likes
   useEffect(() => {
-    if (!pendingStarRef.current) {
+    if (bootstrapped && !pendingStarRef.current) {
       setStarred(savedIds.has(post.id));
     }
-  }, [savedIds, post.id]);
+  }, [savedIds, post.id, bootstrapped]);
   useEffect(() => {
     if (!pendingStarRef.current) setStarCount(post.favorites ?? 0);
   }, [post.favorites]);
@@ -679,6 +680,9 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   };
 
   const handleLike = async () => {
+    // Prevent concurrent requests — same behaviour as X/Instagram
+    if (pendingLikeRef.current) return;
+
     const prevLiked = liked;
     const prevCount = likeCount;
     const newLiked = !prevLiked;
@@ -688,7 +692,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     setLiked(newLiked);
     setLikeCount(newLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
     setIsAnimatingLike(true);
-    setTimeout(() => setIsAnimatingLike(false), 300);
+    setTimeout(() => setIsAnimatingLike(false), 400);
     onLike?.(post.id);
 
     if (isClientDemoMode) {
@@ -723,16 +727,22 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   };
 
   const handleSave = async () => {
+    // Prevent concurrent requests
+    if (pendingStarRef.current) return;
+
     const prevStarred = starred;
     const prevCount = starCount;
     const newStarred = !prevStarred;
 
-    // Optimistic update
+    // Optimistic update + animation
     pendingStarRef.current = true;
     setStarred(newStarred);
     setStarCount(newStarred ? prevCount + 1 : Math.max(0, prevCount - 1));
+    setIsAnimatingStar(true);
+    setTimeout(() => setIsAnimatingStar(false), 400);
 
     if (isClientDemoMode) {
+      setSavedId(post.id, newStarred);
       pendingStarRef.current = false;
       return;
     }
@@ -1058,7 +1068,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
                 starred
                   ? "text-yellow-400 fill-yellow-400 scale-110"
                   : "text-lion-gray-3 group-hover:text-yellow-400"
-              }`}
+              } ${isAnimatingStar ? "animate-scale-in" : ""}`}
             />
             <span
               className={`text-xs font-medium ${
