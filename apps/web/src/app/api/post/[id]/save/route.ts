@@ -15,10 +15,6 @@ function getServiceClient() {
   );
 }
 
-function genId() {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-}
-
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const postId = params.id;
