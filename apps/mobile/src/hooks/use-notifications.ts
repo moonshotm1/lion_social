@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 
 export interface RealNotification {
   id: string;
-  type: "follow" | "like" | "comment";
+  type: "follow" | "like" | "comment" | "save";
   actor: { id: string; username: string; avatarUrl: string | null };
   postId: string | null;
   message: string;
@@ -29,6 +29,8 @@ export function useNotifications() {
           ? "liked your post"
           : n.type === "comment"
           ? "commented on your post"
+          : n.type === "save"
+          ? "favorited your post"
           : "started following you";
       return {
         id: n.id,
@@ -138,5 +140,9 @@ export function useNotifications() {
     setUnreadCount((prev) => Math.max(0, prev - 1));
   }, []);
 
-  return { notifications, unreadCount, loading, markAllRead, markRead };
+  const refetch = useCallback(async () => {
+    if (appUserId) await fetchNotifications(appUserId);
+  }, [appUserId, fetchNotifications]);
+
+  return { notifications, unreadCount, loading, markAllRead, markRead, refetch };
 }

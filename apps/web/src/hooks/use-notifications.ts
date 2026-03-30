@@ -100,6 +100,8 @@ function useNotificationsReal(): UseNotificationsResult {
   const markAllRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     fetch("/api/notifications/read-all", { method: "PATCH" }).catch(() => {});
+    // Let the unread-count badge reset immediately without waiting for the poll
+    window.dispatchEvent(new CustomEvent("lion:notifications-read-all"));
   }, []);
 
   return { notifications, isLoading, markRead, markAllRead, initialFollowingIds };
