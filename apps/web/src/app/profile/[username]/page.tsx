@@ -139,14 +139,14 @@ export default function ProfilePage({
     if (profileUser?.following !== undefined) setFollowingCount(profileUser.following);
   }, [profileUser?.followers, profileUser?.following]);
 
-  // Sync isFollowing and reset tab only when the profile user changes (not on background polls)
-  // Using profileUser?.id as dep prevents background refreshes from overriding optimistic state
   useEffect(() => {
-    if (!isOwnProfile) {
+    if (!isOwnProfile && !followLoading) {
       setIsFollowing(profileIsFollowing);
-      // Reset to posts tab — likes/favorites are private and not shown for other profiles
-      setActiveTab("posts");
     }
+  }, [profileIsFollowing, isOwnProfile, followLoading]);
+
+  useEffect(() => {
+    if (!isOwnProfile) setActiveTab("posts");
   }, [profileUser?.id, isOwnProfile]);
 
   const handleFollow = async () => {
@@ -557,9 +557,9 @@ export default function ProfilePage({
           initialTab={connectionsTab}
           followersCount={followersCount}
           followingCount={followingCount}
+          onConnectionAction={refreshCounts}
           onClose={() => {
             setShowConnections(false);
-            // Background-refresh counts after follow/unfollow in modal
             setTimeout(() => refreshCounts(), 500);
           }}
         />
