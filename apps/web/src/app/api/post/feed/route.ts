@@ -21,25 +21,22 @@ async function normalizePosts(
   const userIds = Array.from(new Set(posts.map((p) => p.userId)))
   const postIds = posts.map((p) => p.id)
 
-  const parallelQueries: Promise<any>[] = [
+  const [{ data: users }, { data: follows }, { data: countRows }] = await Promise.all([
     supabase.from('User').select('id, username, displayName, avatarUrl, bio').in('id', userIds),
     supabase.from('Follow').select('followingId').in('followingId', userIds),
     supabase.from('Post').select('id, likes:Like(count), comments:Comment(count), views:PostView(count)').in('id', postIds),
-  ]
+  ])
 
+  let viewerLikedSet = new Set<string>()
+  let viewerSavedSet = new Set<string>()
   if (viewerDbId) {
-    parallelQueries.push(
+    const [{ data: viewerLikes }, { data: viewerSaves }] = await Promise.all([
       supabase.from('Like').select('postId').eq('userId', viewerDbId).in('postId', postIds),
       supabase.from('Save').select('postId').eq('userId', viewerDbId).in('postId', postIds),
-    )
+    ])
+    viewerLikedSet = new Set((viewerLikes ?? []).map((l: { postId: string }) => l.postId))
+    viewerSavedSet = new Set((viewerSaves ?? []).map((s: { postId: string }) => s.postId))
   }
-
-  const results = await Promise.all(parallelQueries)
-  const [{ data: users }, { data: follows }, { data: countRows }] = results
-  const viewerLikes: string[] = viewerDbId ? (results[3]?.data ?? []).map((l: any) => l.postId) : []
-  const viewerSaves: string[] = viewerDbId ? (results[4]?.data ?? []).map((s: any) => s.postId) : []
-  const viewerLikedSet = new Set(viewerLikes)
-  const viewerSavedSet = new Set(viewerSaves)
 
   // Build follower count map: how many people follow each user
   const followerCountMap: Record<string, number> = {}

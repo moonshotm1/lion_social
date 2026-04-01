@@ -147,6 +147,7 @@ function InlineComments({
       });
       if (res.ok) {
         await reloadComments();
+        onCountChange(initialCount + 1);
       }
     } finally {
       setSubmittingReply(false);
