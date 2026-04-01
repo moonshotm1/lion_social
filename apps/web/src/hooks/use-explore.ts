@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockPosts, mockUsers } from "@/lib/mock-data";
 import { transformPost } from "@/lib/transforms";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 import type { MockPost, MockUser, PostType } from "@/lib/types";
 
 interface UseExploreResult {
@@ -28,18 +29,29 @@ function useExploreReal(): UseExploreResult {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/post/feed?limit=30")
-      .then(async (res) => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch("/api/post/feed?limit=30", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to fetch posts");
-        const posts = (data.posts ?? []).map(transformPost);
-        setTrendingPosts(posts);
-        setIsLoading(false);
-      })
-      .catch((err) => {
+        if (!cancelled) {
+          const posts = (data.posts ?? []).map(transformPost);
+          setTrendingPosts(posts);
+          setIsLoading(false);
+        }
+      } catch (err) {
         console.error("[useExplore] Error:", err);
-        setIsLoading(false);
-      });
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   // Extract unique authors as featured users

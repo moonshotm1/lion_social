@@ -38,16 +38,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Increment view count atomically
-    await supabase.rpc('increment_post_view', { post_id: postId });
-
-    // Fetch everything in parallel
+    // Fetch everything in parallel — view count comes from PostView rows (unique
+    // per user) so it matches the feed routes. View recording happens via
+    // POST /api/post/[id]/view fired by ViewsProvider, not by this GET.
     const [
       { data: user },
       { data: comments },
       { data: likesRows },
       { data: commentsRows },
       { data: savesRows },
+      { data: viewRows },
       { data: viewerLike },
       { data: viewerSave },
     ] = await Promise.all([
@@ -56,6 +56,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       supabase.from('Like').select('id').eq('postId', postId),
       supabase.from('Comment').select('id').eq('postId', postId),
       supabase.from('Save').select('id').eq('postId', postId),
+      supabase.from('PostView').select('id').eq('postId', postId),
       viewerDbId
         ? supabase.from('Like').select('id').eq('postId', postId).eq('userId', viewerDbId).maybeSingle()
         : Promise.resolve({ data: null }),
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     return NextResponse.json({
       ...post,
-      viewCount: (post.viewCount ?? 0) + 1,
+      viewCount: (viewRows ?? []).length,
       user: user ?? { id: post.userId, username: 'unknown', avatarUrl: null, bio: null },
       isLiked: !!viewerLike,
       isBookmarked: !!viewerSave,

@@ -67,7 +67,15 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch("/api/user/liked-post-ids", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          if (!cancelled) {
+            setLikedIds(new Set());
+            setSavedIds(new Set());
+            setBootstrapped(true);
+          }
+          return;
+        }
         const data = await res.json();
         if (!cancelled) {
           setLikedIds(new Set(data.postIds ?? []));
