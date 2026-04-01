@@ -11,19 +11,35 @@ function getSupabase() {
   )
 }
 
-async function normalizePosts(supabase: ReturnType<typeof getSupabase>, posts: any[]) {
+async function normalizePosts(
+  supabase: ReturnType<typeof getSupabase>,
+  posts: any[],
+  viewerDbId: string | null
+) {
   if (!posts.length) return []
 
   const userIds = Array.from(new Set(posts.map((p) => p.userId)))
   const postIds = posts.map((p) => p.id)
 
-  const [{ data: users }, { data: follows }, { data: countRows }] = await Promise.all([
+  const parallelQueries: Promise<any>[] = [
     supabase.from('User').select('id, username, displayName, avatarUrl, bio').in('id', userIds),
-    // Count followers for each author so Featured Creators shows real counts
     supabase.from('Follow').select('followingId').in('followingId', userIds),
-    // Inline counts — one query for all posts, guaranteed accurate per row
     supabase.from('Post').select('id, likes:Like(count), comments:Comment(count), views:PostView(count)').in('id', postIds),
-  ])
+  ]
+
+  if (viewerDbId) {
+    parallelQueries.push(
+      supabase.from('Like').select('postId').eq('userId', viewerDbId).in('postId', postIds),
+      supabase.from('Save').select('postId').eq('userId', viewerDbId).in('postId', postIds),
+    )
+  }
+
+  const results = await Promise.all(parallelQueries)
+  const [{ data: users }, { data: follows }, { data: countRows }] = results
+  const viewerLikes: string[] = viewerDbId ? (results[3]?.data ?? []).map((l: any) => l.postId) : []
+  const viewerSaves: string[] = viewerDbId ? (results[4]?.data ?? []).map((s: any) => s.postId) : []
+  const viewerLikedSet = new Set(viewerLikes)
+  const viewerSavedSet = new Set(viewerSaves)
 
   // Build follower count map: how many people follow each user
   const followerCountMap: Record<string, number> = {}
@@ -49,7 +65,9 @@ async function normalizePosts(supabase: ReturnType<typeof getSupabase>, posts: a
 
   return posts.map((post) => ({
     ...post,
-    viewCount: countMap[post.id]?.views    ?? 0,
+    viewCount:    countMap[post.id]?.views    ?? 0,
+    isLiked:      viewerLikedSet.has(post.id),
+    isBookmarked: viewerSavedSet.has(post.id),
     user: userMap[post.userId] ?? { id: post.userId, username: 'unknown', avatarUrl: null, bio: null, _count: { followers: 0, following: 0, posts: 0 } },
     _count: {
       likes:    countMap[post.id]?.likes    ?? 0,
@@ -67,6 +85,21 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabase()
 
+    // Resolve optional viewer from Bearer token so we can return isLiked/isBookmarked
+    let viewerDbId: string | null = null
+    const auth = req.headers.get('authorization')
+    if (auth?.startsWith('Bearer ')) {
+      try {
+        const token = auth.slice(7)
+        const { data: { user: authUser } } = await supabase.auth.getUser(token)
+        if (authUser) {
+          const { data: dbUser } = await supabase
+            .from('User').select('id').eq('supabaseId', authUser.id).single()
+          viewerDbId = dbUser?.id ?? null
+        }
+      } catch { /* non-fatal */ }
+    }
+
     let query = supabase
       .from('Post')
       .select('*')
@@ -83,7 +116,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const normalized = await normalizePosts(supabase, posts ?? [])
+    const normalized = await normalizePosts(supabase, posts ?? [], viewerDbId)
     return NextResponse.json({ posts: normalized })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch posts'

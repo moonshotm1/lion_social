@@ -579,23 +579,23 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const pendingCommentRef = useRef(false);
 
   // Sync liked state once the context has bootstrapped with server data.
-  // Gated on `bootstrapped` so the empty initial Set doesn't flash-clear
-  // the post.isLiked value that the feed already provided.
+  // Use OR so a stale feed `isLiked: false` can never override a bootstrap
+  // truth of `true` — we trust whichever source says the user has liked it.
   useEffect(() => {
     if (bootstrapped && !pendingLikeRef.current) {
-      setLiked(likedIds.has(post.id));
+      setLiked((prev) => likedIds.has(post.id) || (post.isLiked ?? prev));
     }
-  }, [likedIds, post.id, bootstrapped]);
+  }, [likedIds, post.id, post.isLiked, bootstrapped]);
   // Sync counts only from feed polls — not tied to likedIds changes
   useEffect(() => {
     if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);
   }, [post.likes]);
-  // Sync starred from savedIds context — same bootstrap gate as likes
+  // Sync starred from savedIds context — same bootstrap gate + OR merge as likes
   useEffect(() => {
     if (bootstrapped && !pendingStarRef.current) {
-      setStarred(savedIds.has(post.id));
+      setStarred((prev) => savedIds.has(post.id) || (post.isBookmarked ?? prev));
     }
-  }, [savedIds, post.id, bootstrapped]);
+  }, [savedIds, post.id, post.isBookmarked, bootstrapped]);
   useEffect(() => {
     if (!pendingStarRef.current) setStarCount(post.favorites ?? 0);
   }, [post.favorites]);
