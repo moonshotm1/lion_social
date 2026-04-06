@@ -83,8 +83,10 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
           setBootstrapped(true);
         }
       } catch {
-        // non-fatal — start with empty sets, but still mark as done
-        if (!cancelled) setBootstrapped(true);
+        // non-fatal — don't mark bootstrapped so existing post.isLiked values are preserved
+        if (!cancelled) {
+          // leave bootstrapped=false so the sync effect doesn't wipe optimistic state
+        }
       }
     }
 

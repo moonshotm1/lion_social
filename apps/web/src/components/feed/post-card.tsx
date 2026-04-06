@@ -603,6 +603,9 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   useEffect(() => {
     if (!pendingCommentRef.current) setCommentCount(post.comments);
   }, [post.comments]);
+  useEffect(() => {
+    setViewCount(post.views);
+  }, [post.views]);
 
   // Track view via IntersectionObserver — only fires when post is actually visible,
   // and ViewsProvider will queue the request if the auth token isn't ready yet.
@@ -613,6 +616,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
       (entries) => {
         if (entries[0].isIntersecting) {
           trackView(post.id);
+          setViewCount((prev) => prev + 1);
           observer.disconnect();
         }
       },
