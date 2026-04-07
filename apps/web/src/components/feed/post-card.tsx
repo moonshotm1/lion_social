@@ -578,6 +578,8 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const pendingLikeRef = useRef(false);
   const pendingStarRef = useRef(false);
   const pendingCommentRef = useRef(false);
+  // Tracks whether this card has been locally viewed so poll doesn't wipe +1
+  const locallyViewedRef = useRef(false);
 
   // Sync liked state once the context has bootstrapped with server data.
   // Use OR so a stale feed `isLiked: false` can never override a bootstrap
@@ -604,7 +606,9 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     if (!pendingCommentRef.current) setCommentCount(post.comments);
   }, [post.comments]);
   useEffect(() => {
-    setViewCount(post.views);
+    // Only sync from server if we haven't locally incremented — prevents
+    // the poll from overwriting the +1 the user just contributed
+    if (!locallyViewedRef.current) setViewCount(post.views);
   }, [post.views]);
 
   // Track view via IntersectionObserver — only fires when post is actually visible,
@@ -615,6 +619,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
+          locallyViewedRef.current = true;
           trackView(post.id);
           setViewCount((prev) => prev + 1);
           observer.disconnect();

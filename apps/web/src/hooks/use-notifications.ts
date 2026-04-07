@@ -40,7 +40,11 @@ function useNotificationsReal(): UseNotificationsResult {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch("/api/notifications");
+      const { createSupabaseBrowserClient } = await import("@/lib/supabase");
+      const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
+      const headers: Record<string, string> = {};
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+      const res = await fetch("/api/notifications", { headers });
       if (!res.ok) return;
       const data = await res.json();
       const items: MockNotification[] = (data.notifications ?? []).map(

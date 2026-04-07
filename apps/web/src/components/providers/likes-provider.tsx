@@ -69,11 +69,7 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
         });
         if (cancelled) return;
         if (!res.ok) {
-          if (!cancelled) {
-            setLikedIds(new Set());
-            setSavedIds(new Set());
-            setBootstrapped(true);
-          }
+          // API error — leave bootstrapped=false so post.isLiked values from feed are preserved
           return;
         }
         const data = await res.json();

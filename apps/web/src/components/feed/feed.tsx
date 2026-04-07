@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   Crown,
   Flame,
-  TrendingUp,
   Sparkles,
   Dumbbell,
   Salad,
@@ -16,7 +15,6 @@ import { PostCard } from "./post-card";
 import { useFeed } from "@/hooks/use-feed";
 import type { PostType } from "@/lib/types";
 
-type FeedTab = "following" | "explore";
 type CategoryFilter = "all" | PostType;
 
 const categories: {
@@ -34,10 +32,10 @@ const categories: {
 ];
 
 export function Feed() {
-  const [activeTab, setActiveTab] = useState<FeedTab>("following");
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
-  const { posts: filteredPosts, isLoading, isLoadingMore, hasNextPage, fetchNextPage } = useFeed(activeCategory, activeTab);
+  // Home feed always shows the "following" tab — people you follow
+  const { posts, isLoading, isLoadingMore, hasNextPage, fetchNextPage } = useFeed(activeCategory, "following");
 
   return (
     <div className="space-y-6">
@@ -51,89 +49,39 @@ export function Feed() {
         </div>
       </div>
 
-      {/* Tab Bar */}
-      <div className="sticky top-0 z-30 bg-lion-black/80 backdrop-blur-xl border-b border-lion-gold/10 -mx-4 px-4">
-        <div className="flex items-center gap-0">
-          <button
-            onClick={() => setActiveTab("following")}
-            className={`
-              relative flex-1 py-4 text-sm font-semibold text-center
-              transition-colors duration-200
-              ${
-                activeTab === "following"
-                  ? "text-lion-gold"
-                  : "text-lion-gray-3 hover:text-lion-white"
-              }
-            `}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <Crown className="w-4 h-4" />
-              Following
-            </div>
-            {activeTab === "following" && (
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-gold-gradient rounded-full" />
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab("explore")}
-            className={`
-              relative flex-1 py-4 text-sm font-semibold text-center
-              transition-colors duration-200
-              ${
-                activeTab === "explore"
-                  ? "text-lion-gold"
-                  : "text-lion-gray-3 hover:text-lion-white"
-              }
-            `}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Explore
-            </div>
-            {activeTab === "explore" && (
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-gold-gradient rounded-full" />
-            )}
-          </button>
-        </div>
-      </div>
-
       {/* Category Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
-        {categories.map((cat) => {
-          const Icon = cat.icon;
-          const isActive = activeCategory === cat.id;
+      <div className="sticky top-0 z-30 bg-lion-black/80 backdrop-blur-xl border-b border-lion-gold/10 -mx-4 px-4 py-3">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {categories.map((cat) => {
+            const Icon = cat.icon;
+            const isActive = activeCategory === cat.id;
 
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`
-                flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold
-                border transition-all duration-200 whitespace-nowrap shrink-0
-                ${
-                  isActive
-                    ? `${cat.activeBg} ${cat.activeColor}`
-                    : "bg-lion-dark-2 border-lion-gold/10 text-lion-gray-3 hover:border-lion-gold/25 hover:text-lion-gray-4"
-                }
-              `}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {cat.label}
-              {isActive && activeCategory !== "all" && (
-                <span className="ml-0.5 opacity-70">
-                  ({filteredPosts.length})
-                </span>
-              )}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`
+                  flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold
+                  border transition-all duration-200 whitespace-nowrap shrink-0
+                  ${
+                    isActive
+                      ? `${cat.activeBg} ${cat.activeColor}`
+                      : "bg-lion-dark-2 border-lion-gold/10 text-lion-gray-3 hover:border-lion-gold/25 hover:text-lion-gray-4"
+                  }
+                `}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Posts Feed */}
       <div className="space-y-5">
-        {isLoading ? null : filteredPosts.length > 0 ? (
-          filteredPosts.map((post, index) => (
+        {isLoading ? null : posts.length > 0 ? (
+          posts.map((post, index) => (
             <div
               key={post.id}
               className="animate-slide-up"
@@ -142,7 +90,7 @@ export function Feed() {
               <PostCard post={post} />
             </div>
           ))
-        ) : activeTab === "following" ? (
+        ) : (
           <div className="flex flex-col items-center gap-4 py-20 text-center">
             <div className="w-16 h-16 rounded-full bg-lion-gold/10 flex items-center justify-center">
               <Users className="w-8 h-8 text-lion-gold/60" />
@@ -153,24 +101,12 @@ export function Feed() {
                 Follow people to see their posts here
               </p>
             </div>
-            <button
-              onClick={() => setActiveTab("explore")}
-              className="mt-1 px-5 py-2 rounded-xl text-sm font-semibold btn-gold"
-            >
-              Explore Posts
-            </button>
-          </div>
-        ) : (
-          <div className="text-center py-16">
-            <p className="text-sm text-lion-gray-3">
-              No posts in this category yet
-            </p>
           </div>
         )}
       </div>
 
       {/* Load More / End of Feed */}
-      {!isLoading && filteredPosts.length > 0 && (
+      {!isLoading && posts.length > 0 && (
         <div className="text-center py-8">
           {hasNextPage ? (
             <button
@@ -187,9 +123,6 @@ export function Feed() {
               </div>
               <p className="text-sm text-lion-gray-3 font-medium">
                 You&apos;re all caught up
-              </p>
-              <p className="text-xs text-lion-gray-2">
-                Follow more people to fill your feed
               </p>
             </div>
           )}
