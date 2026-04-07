@@ -43,6 +43,8 @@ export interface StoryData {
   title: string;
   content: string;
   tags: string[];
+  beforeImageUrl?: string;
+  afterImageUrl?: string;
 }
 
 // ─── Post Type ─────────────────────────────────────────────────────────────

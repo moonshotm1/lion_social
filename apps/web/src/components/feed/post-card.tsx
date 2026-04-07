@@ -504,6 +504,11 @@ function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean 
     ? content.substring(0, previewLength).trim() + "..."
     : content;
 
+  const hasBefore = !!data.beforeImageUrl;
+  const hasAfter = !!data.afterImageUrl;
+  const hasImages = hasBefore || hasAfter;
+  const isSideBySide = hasBefore && hasAfter;
+
   return (
     <div className="px-4 pt-3 pb-2 space-y-3">
       {/* Title */}
@@ -511,6 +516,44 @@ function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean 
         <BookOpen className="w-4 h-4 text-gains-orange" />
         <h3 className="text-base font-bold text-lion-white">{data.title}</h3>
       </div>
+
+      {/* Before / After images */}
+      {hasImages && (
+        <div className={`grid gap-2 ${isSideBySide ? "grid-cols-2" : "grid-cols-1"}`}>
+          {hasBefore && (
+            <div className="relative rounded-xl overflow-hidden bg-lion-dark-2">
+              <Image
+                src={data.beforeImageUrl!}
+                alt="Before"
+                width={400}
+                height={300}
+                className="w-full object-cover"
+              />
+              {isSideBySide && (
+                <span className="absolute bottom-2 left-2 text-[10px] font-bold uppercase tracking-widest bg-lion-black/70 text-lion-gray-3 px-2 py-0.5 rounded-full">
+                  Before
+                </span>
+              )}
+            </div>
+          )}
+          {hasAfter && (
+            <div className="relative rounded-xl overflow-hidden bg-lion-dark-2">
+              <Image
+                src={data.afterImageUrl!}
+                alt="After"
+                width={400}
+                height={300}
+                className="w-full object-cover"
+              />
+              {isSideBySide && (
+                <span className="absolute bottom-2 left-2 text-[10px] font-bold uppercase tracking-widest bg-lion-black/70 text-gains-orange px-2 py-0.5 rounded-full">
+                  After
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Content preview */}
       <p className="text-sm text-lion-gray-4 leading-relaxed whitespace-pre-line">
