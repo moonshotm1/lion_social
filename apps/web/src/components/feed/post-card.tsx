@@ -385,13 +385,15 @@ function WorkoutContent({ data }: { data: WorkoutData }) {
         ))}
       </div>
 
-      {/* Total volume */}
-      <div className="flex items-center gap-2 pt-1">
-        <Flame className="w-3.5 h-3.5 text-lion-gold" />
-        <span className="text-xs font-semibold text-lion-gold">
-          Total Volume: {formatCount(totalVolume)} lbs
-        </span>
-      </div>
+      {/* Total volume — only shown if any weight was entered */}
+      {totalVolume > 0 && (
+        <div className="flex items-center gap-2 pt-1">
+          <Flame className="w-3.5 h-3.5 text-lion-gold" />
+          <span className="text-xs font-semibold text-lion-gold">
+            Total Volume: {formatCount(totalVolume)} lbs
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -416,32 +418,34 @@ function MealContent({ data }: { data: MealData }) {
         </span>
       </div>
 
-      {/* Macros row */}
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "Calories", value: `${data.macros.calories}`, unit: "kcal", color: "text-lion-gold" },
-          { label: "Protein", value: `${data.macros.protein}g`, unit: "", color: "text-red-400" },
-          { label: "Carbs", value: `${data.macros.carbs}g`, unit: "", color: "text-blue-400" },
-          { label: "Fat", value: `${data.macros.fat}g`, unit: "", color: "text-yellow-400" },
-        ].map((macro) => (
-          <div
-            key={macro.label}
-            className="text-center py-2 px-1 rounded-lg bg-lion-dark-2/60"
-          >
-            <p className={`text-sm font-bold ${macro.color}`}>
-              {macro.value}
-              {macro.unit && (
-                <span className="text-[10px] font-normal ml-0.5 opacity-70">
-                  {macro.unit}
-                </span>
-              )}
-            </p>
-            <p className="text-[10px] text-lion-gray-3 mt-0.5 uppercase tracking-wider">
-              {macro.label}
-            </p>
-          </div>
-        ))}
-      </div>
+      {/* Macros row — only shown if at least one value was set */}
+      {(data.macros.calories > 0 || data.macros.protein > 0 || data.macros.carbs > 0 || data.macros.fat > 0) && (
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label: "Calories", value: `${data.macros.calories}`, unit: "kcal", color: "text-lion-gold" },
+            { label: "Protein", value: `${data.macros.protein}g`, unit: "", color: "text-red-400" },
+            { label: "Carbs", value: `${data.macros.carbs}g`, unit: "", color: "text-blue-400" },
+            { label: "Fat", value: `${data.macros.fat}g`, unit: "", color: "text-yellow-400" },
+          ].map((macro) => (
+            <div
+              key={macro.label}
+              className="text-center py-2 px-1 rounded-lg bg-lion-dark-2/60"
+            >
+              <p className={`text-sm font-bold ${macro.color}`}>
+                {macro.value}
+                {macro.unit && (
+                  <span className="text-[10px] font-normal ml-0.5 opacity-70">
+                    {macro.unit}
+                  </span>
+                )}
+              </p>
+              <p className="text-[10px] text-lion-gray-3 mt-0.5 uppercase tracking-wider">
+                {macro.label}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Ingredients */}
       <div className="flex flex-wrap gap-1.5">
