@@ -503,7 +503,7 @@ export const postTypeConfig: Record<
     emoji: "💬",
   },
   story: {
-    label: "Story",
+    label: "Journal",
     color: "text-gains-orange",
     bgColor: "bg-gains-orange/10",
     emoji: "📖",

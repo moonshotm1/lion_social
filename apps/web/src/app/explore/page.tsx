@@ -27,7 +27,7 @@ const categories: { id: CategoryTab; label: string; icon: React.ElementType }[] 
   { id: "workout", label: "Workouts", icon: Dumbbell },
   { id: "meal", label: "Meals", icon: Salad },
   { id: "quote", label: "Quotes", icon: Quote },
-  { id: "story", label: "Stories", icon: BookOpen },
+  { id: "story", label: "Journal", icon: BookOpen },
 ];
 
 
