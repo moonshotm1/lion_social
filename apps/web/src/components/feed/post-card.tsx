@@ -595,13 +595,17 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const isOwnPost = !!currentUser && currentUser.username === post.author.username;
 
   // ── Like state ────────────────────────────────────────────────────────────
-  // post.isLiked comes from the feed route (server-computed) — no async delay.
-  // likedIds.has() catches the case where context is already bootstrapped.
-  const [liked, setLiked] = useState(post.isLiked || likedIds.has(post.id));
+  // If already bootstrapped (navigated back to feed), use likedIds as truth.
+  // Otherwise use post.isLiked from the feed (auth-aware server value).
+  const [liked, setLiked] = useState(() =>
+    bootstrapped ? likedIds.has(post.id) : (post.isLiked ?? false)
+  );
   const [likeCount, setLikeCount] = useState(post.likes ?? 0);
 
   // ── Star/save state ───────────────────────────────────────────────────────
-  const [starred, setStarred] = useState(savedIds.has(post.id) || (post.isBookmarked ?? false));
+  const [starred, setStarred] = useState(() =>
+    bootstrapped ? savedIds.has(post.id) : (post.isBookmarked ?? false)
+  );
   const [starCount, setStarCount] = useState(post.favorites ?? 0);
 
   // ── Other UI state ────────────────────────────────────────────────────────
@@ -627,25 +631,25 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const pendingCommentRef = useRef(false);
   // Tracks whether this card has been locally viewed so poll doesn't wipe +1
   const locallyViewedRef = useRef(false);
+  // Tracks whether we've done the one-time bootstrap sync for this card
+  const bootstrappedSyncedRef = useRef(bootstrapped);
 
-  // Sync liked state once the context has bootstrapped with server data.
-  // Use OR so a stale feed `isLiked: false` can never override a bootstrap
-  // truth of `true` — we trust whichever source says the user has liked it.
+  // One-time sync when bootstrap completes — runs only once per card mount,
+  // NOT on every likedIds change. This prevents the cascade where liking
+  // post A re-evaluates all cards and overwrites their local state with
+  // stale post.isLiked values from the feed.
   useEffect(() => {
-    if (bootstrapped && !pendingLikeRef.current) {
-      setLiked((prev) => likedIds.has(post.id) || (post.isLiked ?? prev));
+    if (bootstrapped && !bootstrappedSyncedRef.current) {
+      bootstrappedSyncedRef.current = true;
+      if (!pendingLikeRef.current) setLiked(likedIds.has(post.id));
+      if (!pendingStarRef.current) setStarred(savedIds.has(post.id));
     }
-  }, [likedIds, post.id, post.isLiked, bootstrapped]);
-  // Sync counts only from feed polls — not tied to likedIds changes
+  }, [bootstrapped, likedIds, savedIds, post.id]);
+
+  // Sync counts from feed polls — gated by pending refs
   useEffect(() => {
     if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);
   }, [post.likes]);
-  // Sync starred from savedIds context — same bootstrap gate + OR merge as likes
-  useEffect(() => {
-    if (bootstrapped && !pendingStarRef.current) {
-      setStarred((prev) => savedIds.has(post.id) || (post.isBookmarked ?? prev));
-    }
-  }, [savedIds, post.id, post.isBookmarked, bootstrapped]);
   useEffect(() => {
     if (!pendingStarRef.current) setStarCount(post.favorites ?? 0);
   }, [post.favorites]);
@@ -653,8 +657,6 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     if (!pendingCommentRef.current) setCommentCount(post.comments);
   }, [post.comments]);
   useEffect(() => {
-    // Only sync from server if we haven't locally incremented — prevents
-    // the poll from overwriting the +1 the user just contributed
     if (!locallyViewedRef.current) setViewCount(post.views);
   }, [post.views]);
 
