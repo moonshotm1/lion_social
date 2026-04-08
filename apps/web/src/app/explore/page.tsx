@@ -136,6 +136,7 @@ export default function ExplorePage() {
   const [authToken, setAuthToken] = useState<string | null | undefined>(undefined);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Resolve auth token once on mount — wait for session before first fetch
   // so the feed request always includes the Authorization header and isLiked is correct.
@@ -153,7 +154,13 @@ export default function ExplorePage() {
 
   const loadPosts = useCallback(
     async (pageNum: number, resetList: boolean, token: string | null) => {
-      if (loadingRef.current) return;
+      // For page > 0 (infinite scroll), block if already loading
+      if (pageNum > 0 && loadingRef.current) return;
+      // Cancel any in-flight request
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       loadingRef.current = true;
       setIsLoading(true);
       try {
@@ -169,13 +176,15 @@ export default function ExplorePage() {
         const params = new URLSearchParams({ tab: "explore", page: String(pageNum) });
         if (activeCategory !== "all") params.set("type", activeCategory);
         const res = await fetch(`/api/feed?${params}`, {
+          signal: controller.signal,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
         const newPosts = (data.posts ?? []).map(transformPost);
         setPosts((prev) => (resetList ? newPosts : [...prev, ...newPosts]));
         setHasMore(newPosts.length === 20);
-      } catch (err) {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") return; // stale request, ignore
         console.error("[explore] loadPosts error:", err);
       } finally {
         setIsLoading(false);
