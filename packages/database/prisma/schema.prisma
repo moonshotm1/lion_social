@@ -32,8 +32,11 @@ model User {
   sentInvites    Invite[]       @relation("SentInvites")
   receivedInvite Invite?        @relation("ReceivedInvite")
   postViews      PostView[]
-  sentMessages   Message[]      @relation("sender")
-  receivedMessages Message[]    @relation("recipient")
+  sentMessages     Message[]      @relation("sender")
+  receivedMessages Message[]     @relation("recipient")
+  createdGroups    GroupChat[]
+  groupMemberships GroupMember[]
+  groupMessages    GroupMessage[]
 
   @@index([supabaseId])
   @@index([username])
@@ -178,6 +181,51 @@ model Message {
   @@index([senderId])
   @@index([recipientId])
   @@index([senderId, recipientId, createdAt])
+}
+
+model GroupChat {
+  id        String   @id @default(cuid())
+  name      String
+  avatarUrl String?
+  createdBy String
+  createdAt DateTime @default(now())
+
+  creator  User           @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  members  GroupMember[]
+  messages GroupMessage[]
+
+  @@index([createdBy])
+}
+
+model GroupMember {
+  id       String   @id @default(cuid())
+  groupId  String
+  userId   String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+
+  group GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@index([groupId])
+}
+
+model GroupMessage {
+  id        String   @id @default(cuid())
+  groupId   String
+  senderId  String
+  content   String   @default("")
+  mediaUrl  String?
+  mediaType String?
+  createdAt DateTime @default(now())
+
+  group  GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, createdAt])
+  @@index([senderId])
 }
 
 model Notification {
