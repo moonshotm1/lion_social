@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Crown,
   Flame,
@@ -10,6 +11,7 @@ import {
   Quote,
   BookOpen,
   Users,
+  MessageCircle,
 } from "lucide-react";
 import { PostCard } from "./post-card";
 import { useFeed } from "@/hooks/use-feed";
@@ -39,19 +41,26 @@ export function Feed() {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="text-center py-4 animate-fade-in">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-lion-gold/10 border border-lion-gold/20 mb-4">
-          <Flame className="w-4 h-4 text-lion-gold" />
-          <span className="text-xs font-semibold text-lion-gold uppercase tracking-wider">
-            Rise and Conquer
-          </span>
+      {/* ── Top Bar ── */}
+      <div className="sticky top-0 z-30 bg-lion-black/90 backdrop-blur-xl border-b border-lion-gold/8 -mx-4 px-4">
+        {/* App bar: logo left, messages right */}
+        <div className="flex items-center justify-between py-3">
+          <div className="flex items-center gap-2">
+            <Flame className="w-5 h-5 text-lion-gold" />
+            <span className="text-base font-bold text-lion-white tracking-tight">
+              Lion Social
+            </span>
+          </div>
+          <Link
+            href="/messages"
+            className="relative p-2 rounded-full hover:bg-lion-gold/10 transition-colors duration-200"
+          >
+            <MessageCircle className="w-6 h-6 text-lion-white" />
+          </Link>
         </div>
-      </div>
 
-      {/* Category Filter Tabs */}
-      <div className="sticky top-0 z-30 bg-lion-black/80 backdrop-blur-xl border-b border-lion-gold/10 -mx-4 px-4 py-3">
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {/* Category pills */}
+        <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
           {categories.map((cat) => {
             const Icon = cat.icon;
             const isActive = activeCategory === cat.id;
