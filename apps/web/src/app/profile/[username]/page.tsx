@@ -44,6 +44,8 @@ export default function ProfilePage({
   const [showConnections, setShowConnections] = useState(false);
   const [connectionsTab, setConnectionsTab] = useState<"followers" | "following">("followers");
   const [showMenu, setShowMenu] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [longestStreak, setLongestStreak] = useState(0);
 
   // Resolve the "me" alias to the current user's real username
   const { user: currentUser, isLoading: currentUserLoading } = useCurrentUser();
@@ -139,6 +141,15 @@ export default function ProfilePage({
     if (profileUser?.followers !== undefined) setFollowersCount(profileUser.followers);
     if (profileUser?.following !== undefined) setFollowingCount(profileUser.following);
   }, [profileUser?.followers, profileUser?.following]);
+
+  // Fetch streak when profile user is known
+  useEffect(() => {
+    if (!profileUser?.id) return;
+    fetch(`/api/user/streak?userId=${profileUser.id}`)
+      .then(r => r.json())
+      .then(data => { setStreak(data.streak ?? 0); setLongestStreak(data.longestStreak ?? 0); })
+      .catch(() => {});
+  }, [profileUser?.id]);
 
   useEffect(() => {
     if (!isOwnProfile && !followLoading) {
@@ -423,6 +434,25 @@ export default function ProfilePage({
             <p className="text-xs text-lion-gray-3">Following</p>
           </button>
         </div>
+
+        {/* Streak card */}
+        {streak > 0 && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-lion-gold/8 border border-lion-gold/20">
+            <div className="text-2xl leading-none">🔥</div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-lion-gold">
+                {streak} day streak
+              </p>
+              <p className="text-xs text-lion-gray-3 mt-0.5">
+                {streak === longestStreak ? "Personal best!" : `Best: ${longestStreak} days`}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-lion-gray-3">Keep it going</p>
+              <p className="text-xs font-semibold text-lion-gold mt-0.5">Post today ↗</p>
+            </div>
+          </div>
+        )}
 
         {/* Invite section — own profile only */}
         {isOwnProfile && inviteCode && (

@@ -46,9 +46,9 @@ export function Feed() {
         {/* App bar: logo left, messages right */}
         <div className="flex items-center justify-between py-3">
           <div className="flex items-center gap-2">
-            <Flame className="w-5 h-5 text-lion-gold" />
-            <span className="text-base font-bold text-lion-white tracking-tight">
-              Lion Social
+            <Flame className="w-6 h-6 text-lion-gold drop-shadow-[0_0_6px_rgba(212,168,67,0.6)]" />
+            <span className="text-lg font-black text-lion-gold tracking-tight">
+              GAINS
             </span>
           </div>
           <Link
