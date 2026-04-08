@@ -51,7 +51,7 @@ export async function GET(
     // Fetch thread
     const { data: messages } = await supabase
       .from('Message')
-      .select('id, senderId, recipientId, content, read, createdAt')
+      .select('id, senderId, recipientId, content, mediaUrl, mediaType, read, createdAt')
       .or(
         `and(senderId.eq.${myId},recipientId.eq.${otherId}),and(senderId.eq.${otherId},recipientId.eq.${myId})`
       )

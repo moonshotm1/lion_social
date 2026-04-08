@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     // Fetch all messages where user is sender or recipient
     const { data: messages } = await supabase
       .from('Message')
-      .select('id, senderId, recipientId, content, read, createdAt')
+      .select('id, senderId, recipientId, content, mediaUrl, mediaType, read, createdAt')
       .or(`senderId.eq.${myId},recipientId.eq.${myId}`)
       .order('createdAt', { ascending: false });
 
@@ -77,10 +77,12 @@ export async function GET(req: NextRequest) {
     const conversations = partnerIds.map(partnerId => {
       const latest = threadMap.get(partnerId)!;
       const partner = partnerMap[partnerId] ?? { id: partnerId, username: 'unknown', displayName: null, avatarUrl: null };
+      const lastMessage = latest.content
+        || (latest.mediaType === 'video' ? '🎥 Video' : '📷 Photo');
       return {
         partnerId,
         partner,
-        lastMessage: latest.content,
+        lastMessage,
         lastMessageAt: latest.createdAt,
         lastMessageFromMe: latest.senderId === myId,
         unreadCount: unreadByPartner[partnerId] ?? 0,
@@ -101,9 +103,9 @@ export async function POST(req: NextRequest) {
     if (!authUserId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
     const body = await req.json();
-    const { recipientId, content } = body;
-    if (!recipientId || !content?.trim()) {
-      return NextResponse.json({ error: 'recipientId and content are required' }, { status: 400 });
+    const { recipientId, content, mediaUrl, mediaType } = body;
+    if (!recipientId || (!content?.trim() && !mediaUrl)) {
+      return NextResponse.json({ error: 'recipientId and content or media are required' }, { status: 400 });
     }
 
     const { data: dbUser } = await supabase
@@ -114,7 +116,13 @@ export async function POST(req: NextRequest) {
     const messageId = genId();
     const { data: message, error } = await supabase
       .from('Message')
-      .insert({ id: messageId, senderId: dbUser.id, recipientId, content: content.trim() })
+      .insert({
+        id: messageId,
+        senderId: dbUser.id,
+        recipientId,
+        content: content?.trim() ?? '',
+        ...(mediaUrl ? { mediaUrl, mediaType: mediaType ?? 'image' } : {}),
+      })
       .select()
       .single();
     if (error) throw error;

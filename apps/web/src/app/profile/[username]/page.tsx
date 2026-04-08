@@ -356,6 +356,13 @@ export default function ProfilePage({
             {isOwnProfile ? (
               <>
                 <Link
+                  href="/messages"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold bg-lion-dark-3 text-lion-gray-4 border border-lion-gold/20 hover:border-lion-gold/40 hover:text-lion-white transition-all duration-200"
+                  title="Messages"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                </Link>
+                <Link
                   href="/invite"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold bg-lion-dark-3 text-lion-gold border border-lion-gold/20 hover:border-lion-gold/40 transition-all duration-200"
                   title="Invite Friends"
