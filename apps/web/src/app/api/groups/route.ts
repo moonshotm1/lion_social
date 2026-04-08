@@ -61,7 +61,8 @@ export async function GET(req: NextRequest) {
       .in('groupId', groupIds)
       .order('createdAt', { ascending: false });
 
-    const latestMap: Record<string, typeof latestMessages[0]> = {};
+    type LatestMsg = { id: string; groupId: string; senderId: string; content: string; mediaUrl: string | null; mediaType: string | null; createdAt: string };
+    const latestMap: Record<string, LatestMsg> = {};
     for (const msg of (latestMessages ?? [])) {
       if (!latestMap[msg.groupId]) latestMap[msg.groupId] = msg;
     }
