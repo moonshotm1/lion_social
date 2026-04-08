@@ -17,6 +17,7 @@ import {
   Ticket,
   LogOut,
   Camera,
+  MessageCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUserProfile } from "@/hooks/use-user-profile";
@@ -359,20 +360,31 @@ export default function ProfilePage({
                 </Link>
               </>
             ) : (
-              <button
-                onClick={handleFollow}
-                disabled={followLoading}
-                className={`
-                  px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300 disabled:opacity-60
-                  ${
-                    isFollowing
-                      ? "bg-lion-dark-3 text-lion-white border border-lion-gold/20 hover:border-red-400/30 hover:text-red-400"
-                      : "btn-gold"
-                  }
-                `}
-              >
-                {isFollowing ? "Following" : "Follow"}
-              </button>
+              <div className="flex items-center gap-2">
+                {profileUser?.id && (
+                  <Link
+                    href={`/messages/${profileUser.id}`}
+                    className="p-2 rounded-xl bg-lion-dark-3 text-lion-gray-4 border border-lion-gold/20 hover:border-lion-gold/40 hover:text-lion-white transition-all duration-200"
+                    title="Send message"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                  </Link>
+                )}
+                <button
+                  onClick={handleFollow}
+                  disabled={followLoading}
+                  className={`
+                    px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300 disabled:opacity-60
+                    ${
+                      isFollowing
+                        ? "bg-lion-dark-3 text-lion-white border border-lion-gold/20 hover:border-red-400/30 hover:text-red-400"
+                        : "btn-gold"
+                    }
+                  `}
+                >
+                  {isFollowing ? "Following" : "Follow"}
+                </button>
+              </div>
             )}
           </div>
         </div>
