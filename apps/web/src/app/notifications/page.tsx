@@ -13,6 +13,7 @@ import {
   Check,
   CheckCheck,
   UserCheck,
+  Send,
 } from "lucide-react";
 import { useNotifications } from "@/hooks/use-notifications";
 import { getTimeAgo } from "@/lib/types";
@@ -25,6 +26,7 @@ const notificationIcons: Record<MockNotification["type"], React.ElementType> = {
   follow: UserPlus,
   mention: AtSign,
   save: Star,
+  dm: Send,
 };
 
 const notificationColors: Record<MockNotification["type"], string> = {
@@ -33,6 +35,7 @@ const notificationColors: Record<MockNotification["type"], string> = {
   follow: "text-lion-gold bg-lion-gold/10",
   mention: "text-purple-400 bg-purple-400/10",
   save: "text-yellow-400 bg-yellow-400/10",
+  dm: "text-gains-green bg-gains-green/10",
 };
 
 export default function NotificationsPage() {
@@ -152,7 +155,9 @@ export default function NotificationsPage() {
           const isFollowLoading = followLoadingSet.has(actorId);
           // Where tapping the card navigates
           const cardHref =
-            (notification.type === "like" || notification.type === "comment" || notification.type === "save") && notification.postId
+            notification.type === "dm"
+              ? `/messages/${actorId}`
+              : (notification.type === "like" || notification.type === "comment" || notification.type === "save") && notification.postId
               ? `/post/${notification.postId}`
               : `/profile/${notification.user.username}`;
 

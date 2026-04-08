@@ -69,7 +69,8 @@ export async function GET(req: NextRequest) {
         n.type === 'like'    ? 'liked your post' :
         n.type === 'comment' ? 'commented on your post' :
         n.type === 'follow'  ? 'started following you' :
-        n.type === 'save'    ? 'favorited your post' : '';
+        n.type === 'save'    ? 'favorited your post' :
+        n.type === 'dm'      ? 'sent you a message' : '';
 
       return {
         id: n.id,

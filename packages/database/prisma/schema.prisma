@@ -32,6 +32,8 @@ model User {
   sentInvites    Invite[]       @relation("SentInvites")
   receivedInvite Invite?        @relation("ReceivedInvite")
   postViews      PostView[]
+  sentMessages   Message[]      @relation("sender")
+  receivedMessages Message[]    @relation("recipient")
 
   @@index([supabaseId])
   @@index([username])
@@ -129,6 +131,7 @@ enum NotificationType {
   like
   comment
   save
+  dm
 }
 
 model Invite {
@@ -157,6 +160,22 @@ model PostView {
   @@unique([postId, userId])
   @@index([postId])
   @@index([userId])
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  senderId    String
+  recipientId String
+  content     String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  sender    User @relation("sender",    fields: [senderId],    references: [id], onDelete: Cascade)
+  recipient User @relation("recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([senderId, recipientId, createdAt])
 }
 
 model Notification {
