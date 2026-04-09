@@ -66,6 +66,34 @@ export default function MessageThreadPage({ params }: { params: { userId: string
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Real-time: receive incoming messages in this thread
+  useEffect(() => {
+    if (!myDbId) return;
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`dm-${myDbId}-${params.userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "Message",
+          filter: `recipientId=eq.${myDbId}`,
+        },
+        (payload) => {
+          const msg = payload.new as Message;
+          if (msg.senderId === params.userId) {
+            setMessages((prev) => {
+              if (prev.find((m) => m.id === msg.id)) return prev;
+              return [...prev, msg];
+            });
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [myDbId, params.userId]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;

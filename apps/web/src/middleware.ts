@@ -54,7 +54,10 @@ export async function middleware(request: NextRequest) {
 
     // Routes that are accessible without a session
     const isAuthPage =
-      pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
+      pathname.startsWith("/sign-in") ||
+      pathname.startsWith("/sign-up") ||
+      pathname.startsWith("/forgot-password") ||
+      pathname.startsWith("/reset-password");
 
     const isPublicApiRoute =
       pathname.startsWith("/api/trpc") ||

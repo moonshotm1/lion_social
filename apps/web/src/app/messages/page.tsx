@@ -178,6 +178,7 @@ export default function MessagesPage() {
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [myDbId, setMyDbId] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tokenRef = useRef<string | null>(null);
 
@@ -187,10 +188,12 @@ export default function MessagesPage() {
     if (session?.access_token) tokenRef.current = session.access_token;
     const headers: Record<string, string> = {};
     if (tokenRef.current) headers["Authorization"] = `Bearer ${tokenRef.current}`;
-    const [dmsRes, groupsRes] = await Promise.all([
+    const [meRes, dmsRes, groupsRes] = await Promise.all([
+      fetch("/api/user/me", { headers }).then(r => r.json()).catch(() => null),
       fetch("/api/messages", { headers }),
       fetch("/api/groups", { headers }),
     ]);
+    if (meRes?.id) setMyDbId(meRes.id);
     const [dmsData, groupsData] = await Promise.all([dmsRes.json(), groupsRes.json()]);
     setConversations(dmsData.conversations ?? []);
     setGroups(groupsData.groups ?? []);
@@ -198,6 +201,26 @@ export default function MessagesPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Real-time: reload conversations when a new message arrives
+  useEffect(() => {
+    if (!myDbId) return;
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`inbox-${myDbId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "Message",
+          filter: `recipientId=eq.${myDbId}`,
+        },
+        () => { load(); }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [myDbId, load]);
 
   // Debounced user search
   useEffect(() => {

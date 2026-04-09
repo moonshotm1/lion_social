@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockNotifications } from "@/lib/mock-data";
 import type { MockNotification } from "@/lib/types";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 interface UseNotificationsResult {
   notifications: MockNotification[];
@@ -34,6 +36,7 @@ function useNotificationsDemo(): UseNotificationsResult {
 }
 
 function useNotificationsReal(): UseNotificationsResult {
+  const { user } = useCurrentUser();
   const [notifications, setNotifications] = useState<MockNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [initialFollowingIds, setInitialFollowingIds] = useState<Set<string>>(new Set());
@@ -86,6 +89,28 @@ function useNotificationsReal(): UseNotificationsResult {
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  // Real-time: refetch whenever a new Notification is inserted for this user
+  useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`notif-list-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "Notification",
+          filter: `userId=eq.${user.id}`,
+        },
+        () => {
+          fetchNotifications();
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, fetchNotifications]);
 
   const markRead = useCallback(
     (id: string) => {
