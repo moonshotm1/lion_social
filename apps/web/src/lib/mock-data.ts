@@ -82,6 +82,10 @@ export interface MockNotification {
   createdAt: string;
   read: boolean;
   postId?: string;
+  /** The actual comment text — only present for comment notifications */
+  commentText?: string;
+  /** The actual DM preview — only present for dm notifications */
+  dmPreview?: string;
 }
 
 // ─── Mock Users ────────────────────────────────────────────────────────────

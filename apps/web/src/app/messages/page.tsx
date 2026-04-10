@@ -200,26 +200,29 @@ export default function MessagesPage() {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    // Clear the unread message badge in the feed header
+    window.dispatchEvent(new CustomEvent("lion:messages-opened"));
+  }, [load]);
 
-  // Real-time: reload conversations when a new message arrives
+  // Real-time: reload conversations on any new message sent or received
   useEffect(() => {
     if (!myDbId) return;
     const supabase = createSupabaseBrowserClient();
-    const channel = supabase
-      .channel(`inbox-${myDbId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "Message",
-          filter: `recipientId=eq.${myDbId}`,
-        },
-        () => { load(); }
-      )
+    // Two subscriptions: one for received messages, one for sent messages
+    const inbound = supabase
+      .channel(`inbox-recv-${myDbId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "Message", filter: `recipientId=eq.${myDbId}` }, () => { load(); })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const outbound = supabase
+      .channel(`inbox-sent-${myDbId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "Message", filter: `senderId=eq.${myDbId}` }, () => { load(); })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(inbound);
+      supabase.removeChannel(outbound);
+    };
   }, [myDbId, load]);
 
   // Debounced user search

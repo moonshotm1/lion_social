@@ -209,6 +209,18 @@ export default function NotificationsPage() {
                     {notification.message}
                   </span>
                 </p>
+                {/* Show actual comment text */}
+                {notification.type === "comment" && notification.commentText && (
+                  <p className="text-xs text-lion-gray-4 mt-1 bg-lion-dark-3 rounded-lg px-2.5 py-1.5 border border-lion-gold/8 line-clamp-2">
+                    &ldquo;{notification.commentText}&rdquo;
+                  </p>
+                )}
+                {/* Show DM preview */}
+                {notification.type === "dm" && notification.dmPreview && (
+                  <p className="text-xs text-lion-gray-4 mt-1 bg-lion-dark-3 rounded-lg px-2.5 py-1.5 border border-lion-gold/8 line-clamp-1">
+                    {notification.dmPreview}
+                  </p>
+                )}
                 <p className="text-xs text-lion-gray-2 mt-1" suppressHydrationWarning>
                   {getTimeAgo(notification.createdAt)}
                 </p>

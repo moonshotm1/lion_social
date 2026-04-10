@@ -69,6 +69,8 @@ function useNotificationsReal(): UseNotificationsResult {
           createdAt: n.createdAt,
           read: n.read,
           postId: n.postId ?? undefined,
+          commentText: n.commentText ?? undefined,
+          dmPreview: n.dmPreview ?? undefined,
         })
       );
       setNotifications(items);

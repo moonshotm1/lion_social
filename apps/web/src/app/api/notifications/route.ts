@@ -54,6 +54,10 @@ export async function GET(req: NextRequest) {
       notifications.map(n => n.referenceId.split(':')[0])
     ));
 
+    // Collect postIds for comment notifications (to fetch comment text)
+    const commentNotifs = notifications.filter(n => n.type === 'comment');
+    const dmNotifs = notifications.filter(n => n.type === 'dm');
+
     const [{ data: actors }, { data: myFollows }] = await Promise.all([
       supabase.from('User').select('id, username, avatarUrl').in('id', actorIds),
       supabase.from('Follow').select('followingId').eq('followerId', dbUser.id).in('followingId', actorIds),
@@ -61,6 +65,43 @@ export async function GET(req: NextRequest) {
 
     const actorMap = Object.fromEntries((actors ?? []).map(a => [a.id, a]));
     const alreadyFollowing = new Set((myFollows ?? []).map((f: any) => f.followingId));
+
+    // Fetch most recent comment text per comment notification
+    const commentTextMap: Record<string, string> = {};
+    if (commentNotifs.length > 0) {
+      await Promise.all(commentNotifs.map(async n => {
+        const [actorId, postId] = n.referenceId.split(':');
+        if (!actorId || !postId) return;
+        const { data } = await supabase
+          .from('Comment')
+          .select('content')
+          .eq('userId', actorId)
+          .eq('postId', postId)
+          .order('createdAt', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data?.content) commentTextMap[n.id] = data.content;
+      }));
+    }
+
+    // Fetch DM preview text per dm notification (referenceId = "actorId:messageId")
+    const dmPreviewMap: Record<string, string> = {};
+    if (dmNotifs.length > 0) {
+      await Promise.all(dmNotifs.map(async n => {
+        const [, messageId] = n.referenceId.split(':');
+        if (!messageId) return;
+        const { data } = await supabase
+          .from('Message')
+          .select('content, mediaType')
+          .eq('id', messageId)
+          .maybeSingle();
+        if (data) {
+          dmPreviewMap[n.id] = data.content?.trim()
+            ? data.content
+            : data.mediaType === 'video' ? '🎥 Video' : '📷 Photo';
+        }
+      }));
+    }
 
     const enriched = notifications.map(n => {
       const [actorId, postId] = n.referenceId.split(':');
@@ -81,6 +122,8 @@ export async function GET(req: NextRequest) {
         message,
         actor,
         isFollowingActor: alreadyFollowing.has(actorId),
+        commentText: commentTextMap[n.id] ?? null,
+        dmPreview: dmPreviewMap[n.id] ?? null,
       };
     });
 

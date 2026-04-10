@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { PostCard } from "./post-card";
 import { useFeed } from "@/hooks/use-feed";
+import { useUnreadMessages } from "@/hooks/use-unread-messages";
 import type { PostType } from "@/lib/types";
 
 type CategoryFilter = "all" | PostType;
@@ -41,6 +42,7 @@ export function Feed() {
 
   // Home feed always shows the "following" tab — people you follow
   const { posts, isLoading, isLoadingMore, hasNextPage, fetchNextPage, refresh } = useFeed(activeCategory, "following");
+  const { count: unreadMessages } = useUnreadMessages();
 
   // ── Pull-to-refresh ───────────────────────────────────────────────────────
   const [pullY, setPullY] = useState(0);          // how far dragged (0–PULL_THRESHOLD)
@@ -96,9 +98,15 @@ export function Feed() {
           </div>
           <Link
             href="/messages"
+            onClick={() => window.dispatchEvent(new CustomEvent("lion:messages-opened"))}
             className="relative p-2 rounded-full hover:bg-lion-gold/10 transition-colors duration-200"
           >
             <MessageCircle className="w-6 h-6 text-lion-white" />
+            {unreadMessages > 0 && (
+              <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {unreadMessages > 99 ? "99+" : unreadMessages}
+              </span>
+            )}
           </Link>
         </div>
 
