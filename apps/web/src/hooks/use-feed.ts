@@ -16,6 +16,7 @@ interface UseFeedResult {
   error: unknown;
   fetchNextPage: () => void;
   hasNextPage: boolean;
+  refresh: () => void;
 }
 
 function useFeedDemo(
@@ -34,6 +35,7 @@ function useFeedDemo(
     error: null,
     fetchNextPage: () => {},
     hasNextPage: false,
+    refresh: () => {},
   };
 }
 
@@ -47,8 +49,11 @@ function useFeedReal(
   const [error, setError] = useState<unknown>(null);
   const [page, setPage] = useState(0);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   // undefined = not yet resolved, null = unauthenticated, string = supabase user id
   const [authUserId, setAuthUserId] = useState<string | null | undefined>(undefined);
+  // DB-level user id (not supabase auth id) — used to exclude own likes from realtime
+  const [myDbId, setMyDbId] = useState<string | null>(null);
   // Track the current filter/tab so fetchNextPage can reference stable values
   const filterRef = useRef(filter);
   const tabRef = useRef(tab);
@@ -61,11 +66,26 @@ function useFeedReal(
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthUserId(session?.user?.id ?? null);
+      // Fetch DB user id for realtime like dedup
+      if (session?.access_token) {
+        fetch("/api/user/me", { headers: { Authorization: `Bearer ${session.access_token}` } })
+          .then(r => r.json())
+          .then(d => { if (d?.id) setMyDbId(d.id); })
+          .catch(() => {});
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setAuthUserId(session?.user?.id ?? null);
+        if (session?.access_token) {
+          fetch("/api/user/me", { headers: { Authorization: `Bearer ${session.access_token}` } })
+            .then(r => r.json())
+            .then(d => { if (d?.id) setMyDbId(d.id); })
+            .catch(() => {});
+        } else {
+          setMyDbId(null);
+        }
       }
     );
 
@@ -79,9 +99,34 @@ function useFeedReal(
     setHasNextPage(false);
   }, [tab, filter]);
 
+  // Real-time like count updates from other users
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const myDbIdSnapshot = myDbId;
+    const channel = supabase
+      .channel("feed-likes-realtime")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "Like" }, (payload) => {
+        const row = payload.new as { postId: string; userId: string };
+        if (row.userId === myDbIdSnapshot) return; // own like — optimistic already handled it
+        setAllPosts((prev) =>
+          prev.map((p) => p.id === row.postId ? { ...p, likes: (p.likes ?? 0) + 1 } : p)
+        );
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "Like" }, (payload) => {
+        const row = payload.old as { postId: string; userId: string };
+        if (row.userId === myDbIdSnapshot) return; // own unlike — optimistic already handled it
+        setAllPosts((prev) =>
+          prev.map((p) => p.id === row.postId ? { ...p, likes: Math.max(0, (p.likes ?? 0) - 1) } : p)
+        );
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [myDbId]);
+
   useEffect(() => {
     // Wait until auth state is resolved before fetching
     if (authUserId === undefined) return;
+    void refreshKey; // consumed so effect reruns on manual refresh
 
     let cancelled = false;
     const currentPage = page;
@@ -150,13 +195,20 @@ function useFeedReal(
       document.removeEventListener("visibilitychange", onVisible);
       clearInterval(interval);
     };
-  }, [tab, filter, authUserId, page]);
+  }, [tab, filter, authUserId, page, refreshKey]);
 
   const fetchNextPage = useCallback(() => {
     if (!isLoadingMore && hasNextPage) {
       setPage((p) => p + 1);
     }
   }, [isLoadingMore, hasNextPage]);
+
+  const refresh = useCallback(() => {
+    setPage(0);
+    setAllPosts([]);
+    setHasNextPage(false);
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   return {
     posts: allPosts,
@@ -165,6 +217,7 @@ function useFeedReal(
     error,
     fetchNextPage,
     hasNextPage,
+    refresh,
   };
 }
 

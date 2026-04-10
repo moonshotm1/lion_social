@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import {
   Crown,
@@ -12,6 +12,7 @@ import {
   BookOpen,
   Users,
   MessageCircle,
+  RefreshCw,
 } from "lucide-react";
 import { PostCard } from "./post-card";
 import { useFeed } from "@/hooks/use-feed";
@@ -33,14 +34,56 @@ const categories: {
   { id: "story", label: "Journal", icon: BookOpen, activeColor: "text-gains-orange", activeBg: "bg-gains-orange/15 border-gains-orange/40" },
 ];
 
+const PULL_THRESHOLD = 72; // px of drag needed to trigger refresh
+
 export function Feed() {
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
   // Home feed always shows the "following" tab — people you follow
-  const { posts, isLoading, isLoadingMore, hasNextPage, fetchNextPage } = useFeed(activeCategory, "following");
+  const { posts, isLoading, isLoadingMore, hasNextPage, fetchNextPage, refresh } = useFeed(activeCategory, "following");
+
+  // ── Pull-to-refresh ───────────────────────────────────────────────────────
+  const [pullY, setPullY] = useState(0);          // how far dragged (0–PULL_THRESHOLD)
+  const [refreshing, setRefreshing] = useState(false);
+  const touchStartY = useRef(0);
+  const pulling = useRef(false);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      touchStartY.current = e.touches[0].clientY;
+      pulling.current = true;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!pulling.current || refreshing) return;
+    const delta = e.touches[0].clientY - touchStartY.current;
+    if (delta > 0 && window.scrollY === 0) {
+      setPullY(Math.min(delta, PULL_THRESHOLD));
+    } else {
+      pulling.current = false;
+      setPullY(0);
+    }
+  }, [refreshing]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!pulling.current) return;
+    pulling.current = false;
+    if (pullY >= PULL_THRESHOLD) {
+      setRefreshing(true);
+      refresh();
+      setTimeout(() => setRefreshing(false), 800);
+    }
+    setPullY(0);
+  }, [pullY, refresh]);
 
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* ── Top Bar ── */}
       <div className="sticky top-0 z-30 bg-lion-black/90 backdrop-blur-xl border-b border-lion-gold/8 -mx-4 px-4">
         {/* App bar: logo left, messages right */}
@@ -86,6 +129,19 @@ export function Feed() {
           })}
         </div>
       </div>
+
+      {/* Pull-to-refresh indicator */}
+      {(pullY > 0 || refreshing) && (
+        <div
+          className="flex items-center justify-center transition-all duration-200"
+          style={{ height: refreshing ? 40 : pullY * 0.55 }}
+        >
+          <RefreshCw
+            className={`w-5 h-5 text-lion-gold transition-transform duration-200 ${refreshing ? "animate-spin" : ""}`}
+            style={{ transform: `rotate(${(pullY / PULL_THRESHOLD) * 180}deg)` }}
+          />
+        </div>
+      )}
 
       {/* Posts Feed */}
       <div className="space-y-5">
