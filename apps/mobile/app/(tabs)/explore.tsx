@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,60 +8,110 @@ import {
   Image,
   FlatList,
   Dimensions,
+  RefreshControl,
+  ActivityIndicator,
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Colors, { PostTypeColors } from "../../src/constants/colors";
-import {
-  MOCK_POSTS,
-  CATEGORIES,
-  type MockPost,
-} from "../../src/constants/mock-data";
+import { CATEGORIES, type MockPost } from "../../src/constants/mock-data";
+import { supabase } from "../../src/lib/supabase";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GAP = 2;
 const GRID_COLUMNS = 3;
 const GRID_ITEM_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
+async function fetchExplorePosts(): Promise<MockPost[]> {
+  const { data, error } = await supabase
+    .from("Post")
+    .select(`
+      id, caption, imageUrl, type, createdAt,
+      User!inner (id, username, displayName, avatarUrl, isVerified),
+      Like (id, userId),
+      Comment (id)
+    `)
+    .order("createdAt", { ascending: false })
+    .limit(60);
+
+  if (error || !data) return [];
+
+  return (data as any[]).map((p) => ({
+    id: p.id,
+    userId: p.User.id,
+    user: {
+      id: p.User.id,
+      username: p.User.username,
+      displayName: p.User.displayName,
+      avatarUrl: p.User.avatarUrl ?? null,
+      bio: "",
+      followersCount: 0,
+      followingCount: 0,
+      postsCount: 0,
+      isVerified: p.User.isVerified ?? false,
+    },
+    type: p.type as MockPost["type"],
+    caption: p.caption,
+    imageUrl: p.imageUrl ?? null,
+    likesCount: p.Like.length,
+    commentsCount: p.Comment.length,
+    isLiked: false,
+    createdAt: p.createdAt,
+  }));
+}
+
 export default function ExploreScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [posts, setPosts] = useState<MockPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const trendingPosts = MOCK_POSTS.slice(0, 3);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      const result = await fetchExplorePosts();
+      if (!cancelled) { setPosts(result); setLoading(false); }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
-  const filteredPosts = activeCategory
-    ? MOCK_POSTS.filter((p) => p.type === activeCategory)
-    : MOCK_POSTS;
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    const result = await fetchExplorePosts();
+    setPosts(result);
+    setRefreshing(false);
+  }, []);
+
+  const filteredPosts = posts.filter((p) => {
+    const matchesCategory = !activeCategory || p.type === activeCategory;
+    const matchesSearch =
+      !searchQuery ||
+      p.caption.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.user.username.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  const trendingPosts = posts.slice(0, 3);
 
   const renderTrendingCard = ({ item }: { item: MockPost }) => (
     <Pressable style={styles.trendingCard}>
       {item.imageUrl ? (
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={styles.trendingImage}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: item.imageUrl }} style={styles.trendingImage} resizeMode="cover" />
       ) : (
         <View style={[styles.trendingImage, styles.trendingPlaceholder]}>
           <Text style={styles.trendingQuoteIcon}>"</Text>
         </View>
       )}
       <View style={styles.trendingOverlay}>
-        <View
-          style={[
-            styles.trendingBadge,
-            { backgroundColor: PostTypeColors[item.type] },
-          ]}
-        >
+        <View style={[styles.trendingBadge, { backgroundColor: PostTypeColors[item.type] }]}>
           <Text style={styles.trendingBadgeText}>{item.type}</Text>
         </View>
-        <Text style={styles.trendingCaption} numberOfLines={2}>
-          {item.caption}
-        </Text>
+        <Text style={styles.trendingCaption} numberOfLines={2}>{item.caption}</Text>
         <View style={styles.trendingStats}>
-          <Text style={styles.trendingStatText}>
-            {item.likesCount} likes
-          </Text>
+          <Text style={styles.trendingStatText}>{item.likesCount} likes</Text>
         </View>
       </View>
     </Pressable>
@@ -71,23 +121,14 @@ export default function ExploreScreen() {
     <Pressable
       style={[
         styles.gridItem,
-        {
-          marginRight: (index + 1) % GRID_COLUMNS === 0 ? 0 : GRID_GAP,
-          marginBottom: GRID_GAP,
-        },
+        { marginRight: (index + 1) % GRID_COLUMNS === 0 ? 0 : GRID_GAP, marginBottom: GRID_GAP },
       ]}
     >
       {item.imageUrl ? (
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={styles.gridImage}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: item.imageUrl }} style={styles.gridImage} resizeMode="cover" />
       ) : (
         <View style={[styles.gridImage, styles.gridPlaceholder]}>
-          <Text style={styles.gridQuoteText} numberOfLines={4}>
-            {item.caption}
-          </Text>
+          <Text style={styles.gridQuoteText} numberOfLines={4}>{item.caption}</Text>
         </View>
       )}
       <View style={styles.gridOverlay}>
@@ -98,9 +139,30 @@ export default function ExploreScreen() {
     </Pressable>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
+            progressBackgroundColor={Colors.dark800}
+          />
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Explore</Text>
@@ -127,22 +189,23 @@ export default function ExploreScreen() {
         </View>
 
         {/* Trending Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Trending</Text>
-            <Text style={styles.sectionAction}>See All</Text>
+        {trendingPosts.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Trending</Text>
+            </View>
+            <FlatList
+              data={trendingPosts}
+              renderItem={renderTrendingCard}
+              keyExtractor={(item) => `trending-${item.id}`}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.trendingList}
+              snapToInterval={SCREEN_WIDTH * 0.75 + 12}
+              decelerationRate="fast"
+            />
           </View>
-          <FlatList
-            data={trendingPosts}
-            renderItem={renderTrendingCard}
-            keyExtractor={(item) => `trending-${item.id}`}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.trendingList}
-            snapToInterval={SCREEN_WIDTH * 0.75 + 12}
-            decelerationRate="fast"
-          />
-        </View>
+        )}
 
         {/* Category Pills */}
         <View style={styles.section}>
@@ -153,28 +216,16 @@ export default function ExploreScreen() {
           >
             <Pressable
               onPress={() => setActiveCategory(null)}
-              style={[
-                styles.categoryPill,
-                activeCategory === null && styles.categoryPillActive,
-              ]}
+              style={[styles.categoryPill, activeCategory === null && styles.categoryPillActive]}
             >
-              <Text
-                style={[
-                  styles.categoryText,
-                  activeCategory === null && styles.categoryTextActive,
-                ]}
-              >
+              <Text style={[styles.categoryText, activeCategory === null && styles.categoryTextActive]}>
                 All
               </Text>
             </Pressable>
             {CATEGORIES.map((cat) => (
               <Pressable
                 key={cat.id}
-                onPress={() =>
-                  setActiveCategory(
-                    activeCategory === cat.id ? null : cat.id
-                  )
-                }
+                onPress={() => setActiveCategory(activeCategory === cat.id ? null : cat.id)}
                 style={[
                   styles.categoryPill,
                   activeCategory === cat.id && styles.categoryPillActive,
@@ -187,9 +238,7 @@ export default function ExploreScreen() {
                 <Text
                   style={[
                     styles.categoryText,
-                    activeCategory === cat.id && {
-                      color: PostTypeColors[cat.id],
-                    },
+                    activeCategory === cat.id && { color: PostTypeColors[cat.id] },
                   ]}
                 >
                   {cat.label}
@@ -207,33 +256,25 @@ export default function ExploreScreen() {
             </View>
           ))}
         </View>
+
+        {filteredPosts.length === 0 && !loading && (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>🔍</Text>
+            <Text style={styles.emptyTitle}>No posts found</Text>
+            <Text style={styles.emptySubtitle}>Try a different search or category</Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.black,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: Colors.white,
-    letterSpacing: 0.5,
-  },
-
-  // Search
-  searchContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
+  container: { flex: 1, backgroundColor: Colors.black },
+  loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
+  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+  headerTitle: { fontSize: 28, fontWeight: "800", color: Colors.white, letterSpacing: 0.5 },
+  searchContainer: { paddingHorizontal: 20, paddingVertical: 12 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -244,26 +285,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.dark700,
   },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: Colors.white,
-    height: 48,
-  },
-  clearButton: {
-    fontSize: 14,
-    color: Colors.gray,
-    padding: 4,
-  },
-
-  // Sections
-  section: {
-    marginBottom: 24,
-  },
+  searchIcon: { fontSize: 16, marginRight: 10 },
+  searchInput: { flex: 1, fontSize: 15, color: Colors.white, height: 48 },
+  clearButton: { fontSize: 14, color: Colors.gray, padding: 4 },
+  section: { marginBottom: 24 },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -271,22 +296,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: Colors.white,
-  },
-  sectionAction: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.gold,
-  },
-
-  // Trending Cards
-  trendingList: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
+  sectionTitle: { fontSize: 20, fontWeight: "700", color: Colors.white },
+  trendingList: { paddingHorizontal: 20, gap: 12 },
   trendingCard: {
     width: SCREEN_WIDTH * 0.75,
     height: 200,
@@ -294,124 +305,42 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: Colors.dark800,
   },
-  trendingImage: {
-    width: "100%",
-    height: "100%",
-  },
-  trendingPlaceholder: {
-    backgroundColor: Colors.dark700,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  trendingQuoteIcon: {
-    fontSize: 80,
-    color: Colors.goldMuted,
-    fontWeight: "700",
-  },
+  trendingImage: { width: "100%", height: "100%" },
+  trendingPlaceholder: { backgroundColor: Colors.dark700, alignItems: "center", justifyContent: "center" },
+  trendingQuoteIcon: { fontSize: 80, color: Colors.goldMuted, fontWeight: "700" },
   trendingOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    padding: 16, backgroundColor: "rgba(0, 0, 0, 0.65)",
   },
   trendingBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 8,
-    marginBottom: 6,
+    alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 8, marginBottom: 6,
   },
-  trendingBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  trendingCaption: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.white,
-    lineHeight: 20,
-  },
-  trendingStats: {
-    marginTop: 6,
-  },
-  trendingStatText: {
-    fontSize: 12,
-    color: Colors.grayLight,
-  },
-
-  // Category Pills
-  categoryContainer: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
+  trendingBadgeText: { fontSize: 11, fontWeight: "700", color: "#FFFFFF", textTransform: "uppercase", letterSpacing: 0.5 },
+  trendingCaption: { fontSize: 14, fontWeight: "600", color: Colors.white, lineHeight: 20 },
+  trendingStats: { marginTop: 6 },
+  trendingStatText: { fontSize: 12, color: Colors.grayLight },
+  categoryContainer: { paddingHorizontal: 20, gap: 8 },
   categoryPill: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 24,
-    backgroundColor: Colors.dark800,
-    borderWidth: 1,
-    borderColor: Colors.dark700,
+    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24,
+    backgroundColor: Colors.dark800, borderWidth: 1, borderColor: Colors.dark700,
   },
-  categoryPillActive: {
-    borderColor: Colors.gold,
-    backgroundColor: Colors.goldMuted,
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: Colors.gray,
-  },
-  categoryTextActive: {
-    color: Colors.gold,
-  },
-
-  // Grid
-  gridContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingBottom: 100,
-  },
-  gridItem: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
-    overflow: "hidden",
-  },
-  gridImage: {
-    width: "100%",
-    height: "100%",
-  },
-  gridPlaceholder: {
-    backgroundColor: Colors.dark800,
-    padding: 12,
-    justifyContent: "center",
-  },
-  gridQuoteText: {
-    fontSize: 12,
-    color: Colors.grayLight,
-    lineHeight: 18,
-    fontStyle: "italic",
-  },
-  gridOverlay: {
-    position: "absolute",
-    bottom: 8,
-    right: 8,
-  },
+  categoryPillActive: { borderColor: Colors.gold, backgroundColor: Colors.goldMuted },
+  categoryText: { fontSize: 14, fontWeight: "600", color: Colors.gray },
+  categoryTextActive: { color: Colors.gold },
+  gridContainer: { flexDirection: "row", flexWrap: "wrap", paddingBottom: 100 },
+  gridItem: { width: GRID_ITEM_SIZE, height: GRID_ITEM_SIZE, overflow: "hidden" },
+  gridImage: { width: "100%", height: "100%" },
+  gridPlaceholder: { backgroundColor: Colors.dark800, padding: 12, justifyContent: "center" },
+  gridQuoteText: { fontSize: 12, color: Colors.grayLight, lineHeight: 18, fontStyle: "italic" },
+  gridOverlay: { position: "absolute", bottom: 8, right: 8 },
   gridStats: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.6)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10,
   },
-  gridStatText: {
-    fontSize: 11,
-    color: Colors.white,
-    fontWeight: "600",
-  },
+  gridStatText: { fontSize: 11, color: Colors.white, fontWeight: "600" },
+  emptyContainer: { alignItems: "center", paddingTop: 60, paddingHorizontal: 40, paddingBottom: 40 },
+  emptyIcon: { fontSize: 48, marginBottom: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: "700", color: Colors.white, marginBottom: 8 },
+  emptySubtitle: { fontSize: 14, color: Colors.gray, textAlign: "center" },
 });
