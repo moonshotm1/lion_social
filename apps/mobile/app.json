@@ -17,7 +17,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gains.app",
+      "bundleIdentifier": "com.mshaferdev.gains",
       "backgroundColor": "#0A0A0A",
       "config": {
         "usesNonExemptEncryption": false
