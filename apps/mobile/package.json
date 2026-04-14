@@ -24,7 +24,6 @@
     "@clerk/clerk-expo": "^2.2.0",
     "@supabase/supabase-js": "^2.45.0",
     "zustand": "^4.5.0",
-    "nativewind": "^4.0.0",
     "@lion/types": "*"
   },
   "devDependencies": {
