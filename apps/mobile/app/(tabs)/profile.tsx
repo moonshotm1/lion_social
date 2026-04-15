@@ -185,7 +185,7 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.actionRow}>
-            <Pressable style={styles.editButton}>
+            <Pressable style={styles.editButton} onPress={() => router.push("/edit-profile")}>
               <Text style={styles.editButtonText}>Edit Profile</Text>
             </Pressable>
             <Pressable style={styles.shareButton}>
