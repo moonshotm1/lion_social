@@ -10,19 +10,38 @@ import { supabase } from "../../src/lib/supabase";
 
 export default function SignInScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSignIn = async () => {
-    if (!email.trim() || !password) {
-      Alert.alert("Missing fields", "Please enter your email and password.");
+    if (!identifier.trim() || !password) {
+      Alert.alert("Missing fields", "Please enter your email or username and password.");
       return;
     }
     setLoading(true);
+
+    let emailToUse = identifier.trim().toLowerCase();
+
+    // If no @ sign, treat as username — look up the email
+    if (!emailToUse.includes("@")) {
+      const { data: user, error: lookupError } = await supabase
+        .from("User")
+        .select("email")
+        .eq("username", emailToUse)
+        .maybeSingle();
+
+      if (lookupError || !user || !user.email) {
+        setLoading(false);
+        Alert.alert("Sign in failed", "No account found with that username.");
+        return;
+      }
+      emailToUse = user.email;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email: emailToUse,
       password,
     });
     setLoading(false);
@@ -56,12 +75,12 @@ export default function SignInScreen() {
             <Text style={styles.formSubtitle}>Sign in to continue your journey</Text>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>EMAIL</Text>
+              <Text style={styles.inputLabel}>EMAIL OR USERNAME</Text>
               <TextInput
                 style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@example.com"
+                value={identifier}
+                onChangeText={setIdentifier}
+                placeholder="you@example.com or your_handle"
                 placeholderTextColor={Colors.grayDark}
                 keyboardType="email-address"
                 autoCapitalize="none"
