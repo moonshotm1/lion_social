@@ -132,6 +132,7 @@ export default function EditProfileScreen() {
           displayName: displayName.trim() || username.trim(),
           bio: bio.trim(),
           avatarUrl,
+          updatedAt: new Date().toISOString(),
         })
         .eq("id", profile.id);
 

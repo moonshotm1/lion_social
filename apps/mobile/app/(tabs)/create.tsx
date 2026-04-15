@@ -92,11 +92,14 @@ export default function CreateScreen() {
         imageUrl = await uploadImage(imageUri, (appUser as any).id);
       }
 
+      const now = new Date().toISOString();
       const { error } = await supabase.from("Post").insert({
         userId: (appUser as any).id,
         type: selectedType,
         caption: caption.trim(),
         imageUrl,
+        createdAt: now,
+        updatedAt: now,
       });
 
       if (error) {

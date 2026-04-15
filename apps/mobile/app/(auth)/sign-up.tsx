@@ -61,11 +61,14 @@ export default function SignUpScreen() {
       }
 
       // Create User record in database
+      const now = new Date().toISOString();
       const { error: profileError } = await supabase.from("User").insert({
         supabaseId: authData.user.id,
         username: username.trim().toLowerCase(),
         displayName: displayName.trim() || username.trim(),
         inviteCode: generateInviteCode(),
+        createdAt: now,
+        updatedAt: now,
       });
 
       if (profileError) {
