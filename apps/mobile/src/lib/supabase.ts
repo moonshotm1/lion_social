@@ -7,8 +7,8 @@ import * as FileSystem from "expo-file-system";
  * In production, set these values via environment variables
  * or Expo's app.config.js extra field.
  */
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "https://your-project.supabase.co";
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "your-anon-key";
+const SUPABASE_URL = "https://xpvywayrfahzelxirczn.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_8tEUMq_qJAJq5bKQtzuFTQ_3JC9ETSN";
 
 /**
  * Custom storage adapter for React Native using expo-file-system.
