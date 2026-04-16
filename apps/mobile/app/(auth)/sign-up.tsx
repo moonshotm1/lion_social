@@ -8,10 +8,6 @@ import { useRouter } from "expo-router";
 import Colors from "../../src/constants/colors";
 import { supabase } from "../../src/lib/supabase";
 
-function generateInviteCode(): string {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
 export default function SignUpScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -20,6 +16,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleSignUp = async () => {
     if (!email.trim() || !username.trim() || !password) {
@@ -27,7 +24,7 @@ export default function SignUpScreen() {
       return;
     }
     if (username.length < 3 || !/^[a-zA-Z0-9_]+$/.test(username)) {
-      Alert.alert("Invalid username", "Username must be at least 3 characters and can only contain letters, numbers, and underscores.");
+      Alert.alert("Invalid username", "Username must be at least 3 characters (letters, numbers, underscores only).");
       return;
     }
     if (password.length < 6) {
@@ -49,10 +46,18 @@ export default function SignUpScreen() {
         return;
       }
 
-      // Create Supabase auth account
+      // Create Supabase auth account — store username/displayName in metadata
+      // so the callback can create the User record after email confirmation
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
+        options: {
+          emailRedirectTo: "gains://auth/callback",
+          data: {
+            username: username.trim().toLowerCase(),
+            displayName: displayName.trim() || username.trim(),
+          },
+        },
       });
 
       if (authError || !authData.user) {
@@ -60,31 +65,35 @@ export default function SignUpScreen() {
         return;
       }
 
-      // Create User record in database
-      const now = new Date().toISOString();
-      const { error: profileError } = await supabase.from("User").insert({
-        supabaseId: authData.user.id,
-        username: username.trim().toLowerCase(),
-        displayName: displayName.trim() || username.trim(),
-        inviteCode: generateInviteCode(),
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      if (profileError) {
-        // Auth account created but profile failed — delete auth account to keep things clean
-        await supabase.auth.signOut();
-        Alert.alert("Sign up failed", "Could not create your profile. Please try again.");
-        return;
-      }
-
-      // AuthGate will handle the redirect automatically on auth state change
+      // Show "check your email" screen
+      setEmailSent(true);
     } catch {
       Alert.alert("Error", "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (emailSent) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        <View style={styles.confirmContainer}>
+          <Text style={styles.confirmIcon}>📬</Text>
+          <Text style={styles.confirmTitle}>Check your email</Text>
+          <Text style={styles.confirmSubtitle}>
+            We sent a confirmation link to{"\n"}
+            <Text style={styles.confirmEmail}>{email.trim().toLowerCase()}</Text>
+          </Text>
+          <Text style={styles.confirmInstructions}>
+            Tap the link in the email to confirm your account. It will open the app and sign you in automatically.
+          </Text>
+          <Pressable style={styles.backToSignIn} onPress={() => router.back()}>
+            <Text style={styles.backToSignInText}>Back to Sign In</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
@@ -239,4 +248,18 @@ const styles = StyleSheet.create({
   signInLink: { alignItems: "center", marginTop: 24 },
   signInLinkText: { fontSize: 15, color: Colors.gray },
   signInLinkAccent: { color: Colors.gold, fontWeight: "700" },
+
+  // Email sent state
+  confirmContainer: {
+    flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32,
+  },
+  confirmIcon: { fontSize: 72, marginBottom: 24 },
+  confirmTitle: { fontSize: 28, fontWeight: "800", color: Colors.white, marginBottom: 12, textAlign: "center" },
+  confirmSubtitle: { fontSize: 16, color: Colors.gray, textAlign: "center", lineHeight: 24, marginBottom: 20 },
+  confirmEmail: { color: Colors.gold, fontWeight: "700" },
+  confirmInstructions: { fontSize: 14, color: Colors.grayDark, textAlign: "center", lineHeight: 22, marginBottom: 40 },
+  backToSignIn: {
+    backgroundColor: Colors.gold, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 32,
+  },
+  backToSignInText: { fontSize: 15, fontWeight: "700", color: Colors.black },
 });
