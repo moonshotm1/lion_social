@@ -12,6 +12,7 @@ datasource db {
 model User {
   id          String   @id @default(cuid())
   supabaseId  String   @unique
+  email       String?  @unique
   username    String   @unique
   displayName String?
   bio         String?

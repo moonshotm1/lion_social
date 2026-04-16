@@ -199,7 +199,7 @@ export default function PostDetailScreen() {
 
     const { error } = await supabase
       .from("Comment")
-      .insert({ postId: id, userId: appUserId, content: text });
+      .insert({ postId: id, userId: appUserId, content: text, updatedAt: new Date().toISOString() });
 
     if (error) {
       console.error("[PostDetail] Comment insert error:", error.message);
