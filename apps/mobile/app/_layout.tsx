@@ -61,6 +61,8 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="post/[id]" />
             <Stack.Screen name="messages/[userId]" />
+            <Stack.Screen name="group/[groupId]" />
+            <Stack.Screen name="create-group" />
             <Stack.Screen name="edit-profile" />
           </Stack>
         </AuthGate>

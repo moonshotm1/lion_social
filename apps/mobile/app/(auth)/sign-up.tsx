@@ -64,7 +64,6 @@ export default function SignUpScreen() {
       const now = new Date().toISOString();
       const { error: profileError } = await supabase.from("User").insert({
         supabaseId: authData.user.id,
-        email: email.trim().toLowerCase(),
         username: username.trim().toLowerCase(),
         displayName: displayName.trim() || username.trim(),
         inviteCode: generateInviteCode(),
