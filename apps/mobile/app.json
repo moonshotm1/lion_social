@@ -44,7 +44,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": true
@@ -59,7 +60,10 @@
     },
     "owner": "mshaferdev",
     "updates": {
-      "url": "https://u.expo.dev/6285731e-72df-4ef0-89fb-3823e73707f1"
+      "url": "https://u.expo.dev/6285731e-72df-4ef0-89fb-3823e73707f1",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "channel": "production"
     }
   }
 }
