@@ -9,7 +9,7 @@ function generateInviteCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-async function createUserRecord(supabaseId: string, username: string, displayName: string) {
+async function createUserRecord(supabaseId: string, username: string, displayName: string, email: string) {
   // Check if record already exists (e.g. retry scenario)
   const { data: existing } = await supabase
     .from("User")
@@ -24,6 +24,7 @@ async function createUserRecord(supabaseId: string, username: string, displayNam
     supabaseId,
     username,
     displayName,
+    email,
     inviteCode: generateInviteCode(),
     createdAt: now,
     updatedAt: now,
@@ -60,9 +61,10 @@ export default function AuthCallbackScreen() {
         const user = data.session.user;
         const username = (user.user_metadata?.username as string) ?? user.email?.split("@")[0] ?? "user";
         const displayName = (user.user_metadata?.displayName as string) ?? username;
+        const email = user.email ?? "";
 
         setStatus("Setting up your profile…");
-        await createUserRecord(user.id, username, displayName);
+        await createUserRecord(user.id, username, displayName, email);
 
         // AuthGate will handle navigation to tabs
         router.replace("/(tabs)");

@@ -6,8 +6,10 @@ import {
   RefreshControl,
   StyleSheet,
   ActivityIndicator,
+  Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import Colors from "../../src/constants/colors";
 import { type MockPost } from "../../src/constants/mock-data";
 import PostCard from "../../src/components/PostCard";
@@ -65,6 +67,7 @@ async function fetchFeedPosts(): Promise<MockPost[]> {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [posts, setPosts] = useState<MockPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,8 +92,13 @@ export default function HomeScreen() {
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      <Text style={styles.titleText}>GAINS</Text>
-      <View style={styles.titleAccent} />
+      <View style={styles.headerLeft}>
+        <Text style={styles.titleText}>GAINS</Text>
+        <View style={styles.titleAccent} />
+      </View>
+      <Pressable style={styles.messagesButton} onPress={() => router.push("/(tabs)/messages")}>
+        <Text style={styles.messagesIcon}>💬</Text>
+      </Pressable>
     </View>
   );
 
@@ -151,12 +159,20 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
   },
+  headerLeft: { flexDirection: "row", alignItems: "center" },
   titleText: { fontSize: 28, fontWeight: "800", color: Colors.gold, letterSpacing: 4 },
   titleAccent: {
     width: 8, height: 8, borderRadius: 4,
     backgroundColor: Colors.gold, marginLeft: 8, opacity: 0.6,
   },
+  messagesButton: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: Colors.dark800, alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: Colors.dark700,
+  },
+  messagesIcon: { fontSize: 18 },
   separator: { height: 1, backgroundColor: Colors.dark800, marginHorizontal: 20 },
   emptyContainer: {
     flex: 1, alignItems: "center", justifyContent: "center",

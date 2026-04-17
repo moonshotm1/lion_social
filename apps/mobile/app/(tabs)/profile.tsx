@@ -24,11 +24,28 @@ const GRID_ITEM_SIZE = (SCREEN_WIDTH - GRID_GAP * 2) / 3;
 
 type ProfileTab = "posts" | "saved";
 
+async function ensureUserRecord(session: { user: { id: string; email?: string; user_metadata?: any } }) {
+  const username = (session.user.user_metadata?.username as string) ?? session.user.email?.split("@")[0] ?? "user";
+  const displayName = (session.user.user_metadata?.displayName as string) ?? username;
+  const email = session.user.email ?? "";
+  const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const now = new Date().toISOString();
+  await supabase.from("User").insert({
+    supabaseId: session.user.id,
+    username,
+    displayName,
+    email,
+    inviteCode,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
 async function fetchProfile(): Promise<{ user: MockUser; posts: MockPost[] } | null> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return null;
 
-  const { data: appUser, error: userError } = await supabase
+  let { data: appUser, error: userError } = await supabase
     .from("User")
     .select(`
       id, username, displayName, avatarUrl, bio, isVerified,
@@ -39,7 +56,22 @@ async function fetchProfile(): Promise<{ user: MockUser; posts: MockPost[] } | n
     .eq("supabaseId", session.user.id)
     .single();
 
-  if (userError || !appUser) return null;
+  // If no user record exists yet, create one and re-fetch
+  if (userError || !appUser) {
+    await ensureUserRecord(session);
+    const { data: retried } = await supabase
+      .from("User")
+      .select(`
+        id, username, displayName, avatarUrl, bio, isVerified,
+        _followedBy: Follow!followingId (id),
+        _following: Follow!followerId (id),
+        Post (id)
+      `)
+      .eq("supabaseId", session.user.id)
+      .single();
+    if (!retried) return null;
+    appUser = retried;
+  }
 
   const u = appUser as any;
   const user: MockUser = {

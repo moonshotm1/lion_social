@@ -108,10 +108,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="messages"
         options={{
-          title: "Messages",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon icon="💬" label="DMs" focused={focused} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen

@@ -28,7 +28,7 @@ const POST_TYPE_DESCRIPTIONS: Record<PostType, string> = {
   workout: "Share your training session",
   meal: "Show off your nutrition",
   quote: "Inspire the community",
-  story: "Tell your journey",
+  story: "Document your journey",
 };
 
 async function uploadImage(uri: string, userId: string): Promise<string | null> {

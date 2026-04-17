@@ -24,17 +24,20 @@ export default function SignInScreen() {
 
     let emailToUse = identifier.trim().toLowerCase();
 
-    // If no @ sign, treat as username — look up the email via DB function
+    // If no @ sign, treat as username — look up the email from our User table
     if (!emailToUse.includes("@")) {
-      const { data: foundEmail, error: lookupError } = await supabase
-        .rpc("get_email_by_username", { p_username: emailToUse });
+      const { data: userRow, error: lookupError } = await supabase
+        .from("User")
+        .select("email")
+        .eq("username", emailToUse)
+        .maybeSingle();
 
-      if (lookupError || !foundEmail) {
+      if (lookupError || !userRow || !userRow.email) {
         setLoading(false);
         Alert.alert("Sign in failed", "No account found with that username.");
         return;
       }
-      emailToUse = foundEmail;
+      emailToUse = userRow.email;
     }
 
     const { error } = await supabase.auth.signInWithPassword({

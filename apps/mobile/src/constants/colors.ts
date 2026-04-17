@@ -54,7 +54,7 @@ export const PostTypeLabels: Record<string, string> = {
   workout: "Workout",
   meal: "Meal",
   quote: "Quote",
-  story: "Story",
+  story: "Journal",
 };
 
 export default Colors;
