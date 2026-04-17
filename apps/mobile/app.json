@@ -21,7 +21,8 @@
       "backgroundColor": "#0A0A0A",
       "config": {
         "usesNonExemptEncryption": false
-      }
+      },
+      "runtimeVersion": "1.0.0"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,8 +31,12 @@
       },
       "package": "com.gains.app",
       "permissions": [
+        "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -52,6 +57,9 @@
         "projectId": "6285731e-72df-4ef0-89fb-3823e73707f1"
       }
     },
-    "owner": "mshaferdev"
+    "owner": "mshaferdev",
+    "updates": {
+      "url": "https://u.expo.dev/6285731e-72df-4ef0-89fb-3823e73707f1"
+    }
   }
 }
