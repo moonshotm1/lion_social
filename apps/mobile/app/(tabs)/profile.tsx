@@ -59,44 +59,41 @@ async function fetchProfile(): Promise<{ user: MockUser; posts: MockPost[] } | n
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return null;
 
-  let { data: appUser, error: userError } = await supabase
+  const { data: appUser, error: userError } = await supabase
     .from("User")
-    .select(`
-      id, username, displayName, avatarUrl, bio, isVerified,
-      _followedBy: Follow!followingId (id),
-      _following: Follow!followerId (id),
-      Post (id)
-    `)
+    .select("id, username, displayName, avatarUrl, bio, isVerified")
     .eq("supabaseId", session.user.id)
     .single();
 
-  // If no user record exists yet, create one and re-fetch
   if (userError || !appUser) {
     await ensureUserRecord(session);
     const { data: retried } = await supabase
       .from("User")
-      .select(`
-        id, username, displayName, avatarUrl, bio, isVerified,
-        _followedBy: Follow!followingId (id),
-        _following: Follow!followerId (id),
-        Post (id)
-      `)
+      .select("id, username, displayName, avatarUrl, bio, isVerified")
       .eq("supabaseId", session.user.id)
       .single();
     if (!retried) return null;
-    appUser = retried;
+    return fetchProfileForUser(retried as any);
   }
 
-  const u = appUser as any;
+  return fetchProfileForUser(appUser as any);
+}
+
+async function fetchProfileForUser(u: any): Promise<{ user: MockUser; posts: MockPost[] } | null> {
+  const [followersRes, followingRes] = await Promise.all([
+    supabase.from("Follow").select("id", { count: "exact", head: true }).eq("followingId", u.id),
+    supabase.from("Follow").select("id", { count: "exact", head: true }).eq("followerId", u.id),
+  ]);
+
   const user: MockUser = {
     id: u.id,
     username: u.username,
     displayName: u.displayName,
     avatarUrl: u.avatarUrl ?? null,
     bio: u.bio ?? "",
-    followersCount: u._followedBy?.length ?? 0,
-    followingCount: u._following?.length ?? 0,
-    postsCount: u.Post?.length ?? 0,
+    followersCount: followersRes.count ?? 0,
+    followingCount: followingRes.count ?? 0,
+    postsCount: 0,
     isVerified: u.isVerified ?? false,
   };
 
@@ -111,6 +108,8 @@ async function fetchProfile(): Promise<{ user: MockUser; posts: MockPost[] } | n
     .order("createdAt", { ascending: false });
 
   if (postsError || !postsData) return { user, posts: [] };
+
+  user.postsCount = postsData.length;
 
   const posts: MockPost[] = (postsData as any[]).map((p) => ({
     id: p.id,
