@@ -134,12 +134,25 @@ export default function ProfileScreen() {
   const [userPosts, setUserPosts] = useState<MockPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [debugInfo, setDebugInfo] = useState("");
 
   const load = useCallback(async () => {
-    const result = await fetchProfile();
-    if (result) {
-      setCurrentUser(result.user);
-      setUserPosts(result.posts);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setDebugInfo("No session"); setLoading(false); return; }
+      setDebugInfo(`Session: ${session.user.id.substring(0, 8)}...`);
+      const { data, error } = await supabase.from("User").select("id, username").eq("supabaseId", session.user.id).single();
+      if (error) { setDebugInfo(`DB error: ${error.message} | code: ${error.code}`); setLoading(false); return; }
+      if (!data) { setDebugInfo("No user row found"); setLoading(false); return; }
+      const result = await fetchProfile();
+      if (result) {
+        setCurrentUser(result.user);
+        setUserPosts(result.posts);
+      } else {
+        setDebugInfo("fetchProfile returned null");
+      }
+    } catch (e: any) {
+      setDebugInfo(`Exception: ${e?.message}`);
     }
     setLoading(false);
   }, []);
@@ -169,6 +182,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <Text style={styles.emptyTitle}>Not logged in</Text>
+          <Text style={{ color: Colors.gray, fontSize: 12, textAlign: "center", padding: 20 }}>{debugInfo}</Text>
         </View>
       </SafeAreaView>
     );
