@@ -30,7 +30,9 @@ async function ensureUserRecord(session: { user: { id: string; email?: string; u
   const email = session.user.email ?? "";
   const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
   const now = new Date().toISOString();
-  await supabase.from("User").insert({
+
+  // Try with email field first
+  const { error } = await supabase.from("User").insert({
     supabaseId: session.user.id,
     username,
     displayName,
@@ -39,6 +41,18 @@ async function ensureUserRecord(session: { user: { id: string; email?: string; u
     createdAt: now,
     updatedAt: now,
   });
+
+  // Fallback without email in case the column isn't in PostgREST schema cache yet
+  if (error) {
+    await supabase.from("User").insert({
+      supabaseId: session.user.id,
+      username,
+      displayName,
+      inviteCode,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 }
 
 async function fetchProfile(): Promise<{ user: MockUser; posts: MockPost[] } | null> {

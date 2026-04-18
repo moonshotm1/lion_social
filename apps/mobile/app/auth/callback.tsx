@@ -20,7 +20,7 @@ async function createUserRecord(supabaseId: string, username: string, displayNam
   if (existing) return; // Already created
 
   const now = new Date().toISOString();
-  await supabase.from("User").insert({
+  const { error } = await supabase.from("User").insert({
     supabaseId,
     username,
     displayName,
@@ -29,6 +29,18 @@ async function createUserRecord(supabaseId: string, username: string, displayNam
     createdAt: now,
     updatedAt: now,
   });
+
+  // Fallback without email in case column isn't in PostgREST schema cache
+  if (error) {
+    await supabase.from("User").insert({
+      supabaseId,
+      username,
+      displayName,
+      inviteCode: generateInviteCode(),
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 }
 
 export default function AuthCallbackScreen() {
