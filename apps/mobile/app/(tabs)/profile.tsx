@@ -141,15 +141,15 @@ export default function ProfileScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setDebugInfo("No session"); setLoading(false); return; }
       setDebugInfo(`Session: ${session.user.id.substring(0, 8)}...`);
-      const { data, error } = await supabase.from("User").select("id, username").eq("supabaseId", session.user.id).single();
-      if (error) { setDebugInfo(`DB error: ${error.message} | code: ${error.code}`); setLoading(false); return; }
-      if (!data) { setDebugInfo("No user row found"); setLoading(false); return; }
+      const { data: d1, error: e1 } = await supabase.from("User").select("id, username, displayName, avatarUrl, bio, isVerified").eq("supabaseId", session.user.id).single();
+      if (e1) { setDebugInfo(`Full query error: ${e1.message} | ${e1.code}`); setLoading(false); return; }
+      if (!d1) { setDebugInfo("No user row found"); setLoading(false); return; }
       const result = await fetchProfile();
       if (result) {
         setCurrentUser(result.user);
         setUserPosts(result.posts);
       } else {
-        setDebugInfo("fetchProfile returned null");
+        setDebugInfo("fetchProfile returned null after success");
       }
     } catch (e: any) {
       setDebugInfo(`Exception: ${e?.message}`);
