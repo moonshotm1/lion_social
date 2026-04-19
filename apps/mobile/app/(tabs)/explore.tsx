@@ -27,7 +27,7 @@ async function fetchExplorePosts(): Promise<MockPost[]> {
     .from("Post")
     .select(`
       id, caption, imageUrl, type, createdAt,
-      User!inner (id, username, displayName, avatarUrl, isVerified),
+      User!inner (id, username, avatarUrl),
       Like (id, userId),
       Comment (id)
     `)
@@ -42,13 +42,13 @@ async function fetchExplorePosts(): Promise<MockPost[]> {
     user: {
       id: p.User.id,
       username: p.User.username,
-      displayName: p.User.displayName,
+      displayName: p.User.username,
       avatarUrl: p.User.avatarUrl ?? null,
       bio: "",
       followersCount: 0,
       followingCount: 0,
       postsCount: 0,
-      isVerified: p.User.isVerified ?? false,
+      isVerified: false,
     },
     type: p.type as MockPost["type"],
     caption: p.caption,

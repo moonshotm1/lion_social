@@ -135,10 +135,7 @@ export default function CreateScreen() {
   };
 
   const isValid = (): boolean => {
-    if (!selectedType) return false;
-    if (selectedType === "workout") return exercises.some((e) => e.name.trim());
-    if (selectedType === "meal") return mealName.trim().length > 0 || ingredients.some((i) => i.trim());
-    return caption.trim().length > 0;
+    return selectedType !== null;
   };
 
   const handleSubmit = async () => {

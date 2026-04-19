@@ -208,6 +208,19 @@ export default function EditProfileScreen() {
             </Pressable>
           </View>
 
+          {/* Logout */}
+          <Pressable
+            style={styles.logoutBtn}
+            onPress={() => {
+              Alert.alert("Log Out", "Are you sure you want to log out?", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Log Out", style: "destructive", onPress: async () => { await supabase.auth.signOut(); } },
+              ]);
+            }}
+          >
+            <Text style={styles.logoutText}>Log Out</Text>
+          </Pressable>
+
           {/* Fields */}
           <View style={styles.fieldsSection}>
             <View style={styles.field}>
@@ -299,6 +312,12 @@ const styles = StyleSheet.create({
   changePhotoBtn: { marginTop: 12 },
   changePhotoText: { fontSize: 16, fontWeight: "600", color: Colors.gold },
 
+  logoutBtn: {
+    marginHorizontal: 20, marginBottom: 8, paddingVertical: 14,
+    borderRadius: 14, borderWidth: 1, borderColor: Colors.error,
+    alignItems: "center",
+  },
+  logoutText: { fontSize: 15, fontWeight: "700", color: Colors.error },
   fieldsSection: { paddingHorizontal: 20 },
   field: { marginBottom: 24 },
   fieldLabel: { fontSize: 11, fontWeight: "700", color: Colors.gold, letterSpacing: 1.5, marginBottom: 8 },

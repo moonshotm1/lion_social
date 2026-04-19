@@ -64,7 +64,7 @@ export default function PostDetailScreen() {
       .from("Post")
       .select(`
         id, caption, imageUrl, type, createdAt,
-        User!inner (id, username, displayName, avatarUrl, isVerified),
+        User!inner (id, username, avatarUrl),
         Like (id),
         Comment (id)
       `)
@@ -91,9 +91,9 @@ export default function PostDetailScreen() {
       user: {
         id: p.User.id,
         username: p.User.username,
-        displayName: p.User.displayName,
+        displayName: p.User.username,
         avatarUrl: p.User.avatarUrl ?? null,
-        isVerified: p.User.isVerified ?? false,
+        isVerified: false,
       },
     });
     setLoading(false);
