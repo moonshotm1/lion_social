@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   StyleSheet,
+  Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -192,7 +193,7 @@ export default function ProfileScreen() {
         {/* Header Bar */}
         <View style={styles.headerBar}>
           <Text style={styles.username}>@{currentUser.username}</Text>
-          <Pressable style={styles.settingsButton}>
+          <Pressable style={styles.settingsButton} onPress={() => router.push("/edit-profile")}>
             <Text style={styles.settingsIcon}>⚙️</Text>
           </Pressable>
         </View>
@@ -234,7 +235,7 @@ export default function ProfileScreen() {
             <Pressable style={styles.editButton} onPress={() => router.push("/edit-profile")}>
               <Text style={styles.editButtonText}>Edit Profile</Text>
             </Pressable>
-            <Pressable style={styles.shareButton}>
+            <Pressable style={styles.shareButton} onPress={() => Share.share({ message: `Check out @${currentUser.username} on Gains!` })}>
               <Text style={styles.shareButtonText}>Share</Text>
             </Pressable>
           </View>

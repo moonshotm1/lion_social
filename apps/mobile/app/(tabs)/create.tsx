@@ -93,7 +93,9 @@ export default function CreateScreen() {
       }
 
       const now = new Date().toISOString();
+      const postId = 'c' + Math.random().toString(36).substring(2, 26);
       const { error } = await supabase.from("Post").insert({
+        id: postId,
         userId: (appUser as any).id,
         type: selectedType,
         caption: caption.trim(),
