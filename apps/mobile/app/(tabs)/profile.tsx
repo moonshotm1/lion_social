@@ -61,7 +61,7 @@ async function fetchProfile(): Promise<{ user: MockUser; posts: MockPost[] } | n
 
   const { data: appUser, error: userError } = await supabase
     .from("User")
-    .select("id, username, displayName, avatarUrl, bio, isVerified")
+    .select("id, username, bio, avatarUrl")
     .eq("supabaseId", session.user.id)
     .single();
 
@@ -69,7 +69,7 @@ async function fetchProfile(): Promise<{ user: MockUser; posts: MockPost[] } | n
     await ensureUserRecord(session);
     const { data: retried } = await supabase
       .from("User")
-      .select("id, username, displayName, avatarUrl, bio, isVerified")
+      .select("id, username, bio, avatarUrl")
       .eq("supabaseId", session.user.id)
       .single();
     if (!retried) return null;
@@ -88,13 +88,13 @@ async function fetchProfileForUser(u: any): Promise<{ user: MockUser; posts: Moc
   const user: MockUser = {
     id: u.id,
     username: u.username,
-    displayName: u.displayName,
+    displayName: u.displayName ?? u.username,
     avatarUrl: u.avatarUrl ?? null,
     bio: u.bio ?? "",
     followersCount: followersRes.count ?? 0,
     followingCount: followingRes.count ?? 0,
     postsCount: 0,
-    isVerified: u.isVerified ?? false,
+    isVerified: false,
   };
 
   const { data: postsData, error: postsError } = await supabase
@@ -134,25 +134,12 @@ export default function ProfileScreen() {
   const [userPosts, setUserPosts] = useState<MockPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [debugInfo, setDebugInfo] = useState("");
 
   const load = useCallback(async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setDebugInfo("No session"); setLoading(false); return; }
-      setDebugInfo(`Session: ${session.user.id.substring(0, 8)}...`);
-      const { data: d1, error: e1 } = await supabase.from("User").select("id, username, displayName, avatarUrl, bio, isVerified").eq("supabaseId", session.user.id).single();
-      if (e1) { setDebugInfo(`Full query error: ${e1.message} | ${e1.code}`); setLoading(false); return; }
-      if (!d1) { setDebugInfo("No user row found"); setLoading(false); return; }
-      const result = await fetchProfile();
-      if (result) {
-        setCurrentUser(result.user);
-        setUserPosts(result.posts);
-      } else {
-        setDebugInfo("fetchProfile returned null after success");
-      }
-    } catch (e: any) {
-      setDebugInfo(`Exception: ${e?.message}`);
+    const result = await fetchProfile();
+    if (result) {
+      setCurrentUser(result.user);
+      setUserPosts(result.posts);
     }
     setLoading(false);
   }, []);
@@ -182,7 +169,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <Text style={styles.emptyTitle}>Not logged in</Text>
-          <Text style={{ color: Colors.gray, fontSize: 12, textAlign: "center", padding: 20 }}>{debugInfo}</Text>
+
         </View>
       </SafeAreaView>
     );
