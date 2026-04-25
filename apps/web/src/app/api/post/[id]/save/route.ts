@@ -15,10 +15,6 @@ function getServiceClient() {
   );
 }
 
-function genId() {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-}
-
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const postId = params.id;
@@ -52,7 +48,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (existing) {
       // Already saved — delete it (unsave)
-      await supabase.from('Save').delete().eq('id', existing.id);
+      const { error: deleteErr } = await supabase.from('Save').delete().eq('id', existing.id);
+      if (deleteErr) {
+        console.error('[save] delete error:', JSON.stringify(deleteErr));
+        return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+      }
       return NextResponse.json({ saved: false });
     }
 
@@ -71,14 +71,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const now = new Date().toISOString();
     supabase.from('Post').select('userId').eq('id', postId).single().then(async ({ data: post }) => {
       if (!post || post.userId === dbUser.id) return;
-      const { data: existing } = await supabase
+      const { data: existingNotif } = await supabase
         .from('Notification')
         .select('id')
         .eq('userId', post.userId)
         .eq('type', 'save')
         .eq('referenceId', `${dbUser.id}:${postId}`)
         .maybeSingle();
-      if (!existing) {
+      if (!existingNotif) {
         supabase.from('Notification').insert({
           id: genId(),
           userId: post.userId,

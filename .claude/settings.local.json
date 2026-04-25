@@ -29,7 +29,12 @@
       "Bash(npm run build:*)",
       "Bash(next build)",
       "Bash(DATABASE_URL=\"postgresql://postgres:Free1045!20@db.xpvywayrfahzelxirczn.supabase.co:5432/postgres\" npx prisma db push --schema=packages/database/prisma/schema.prisma)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(ls /Users/sucheen/Documents/lion_social/apps/web/.env*)",
+      "Bash(ls /Users/sucheen/Documents/lion_social/.env*)",
+      "Bash(chmod:*)",
+      "Bash(cat /Users/sucheen/Documents/lion_social/apps/web/src/app/api/post/[id]/route.ts)",
+      "Bash(cat:*)"
     ]
   }
 }

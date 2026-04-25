@@ -48,7 +48,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (existing) {
       // Already liked — delete it (unlike)
-      await supabase.from('Like').delete().eq('id', existing.id);
+      const { error: deleteErr } = await supabase.from('Like').delete().eq('id', existing.id);
+      if (deleteErr) {
+        console.error('[like] delete error:', JSON.stringify(deleteErr));
+        return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+      }
       return NextResponse.json({ liked: false });
     }
 
