@@ -89,7 +89,7 @@ const postTypes: {
   },
   {
     type: "story",
-    label: "Story",
+    label: "Journal",
     description: "Share your journey",
     icon: BookOpen,
     color: "text-gains-orange",
@@ -1148,8 +1148,8 @@ function StoryForm({
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Story Details */}
-      <SectionCard title="Story Details" required>
+      {/* Journal Details */}
+      <SectionCard title="Journal Details" required>
         <input
           type="text"
           value={storyTitle}
@@ -1159,8 +1159,8 @@ function StoryForm({
         />
       </SectionCard>
 
-      {/* Story Content */}
-      <SectionCard title="Your Story" required>
+      {/* Journal Content */}
+      <SectionCard title="Your Journal" required>
         <div className="relative">
           <textarea
             value={storyContent}
@@ -1443,8 +1443,8 @@ export default function CreatePage() {
     if (selectedType === "workout" && !workoutTitle.trim()) missing.push("workout title");
     if (selectedType === "meal" && !mealName.trim()) missing.push("meal name");
     if (selectedType === "quote" && !quoteText.trim()) missing.push("quote text");
-    if (selectedType === "story" && !storyTitle.trim()) missing.push("story title");
-    if (selectedType === "story" && !storyContent.trim()) missing.push("story content");
+    if (selectedType === "story" && !storyTitle.trim()) missing.push("journal title");
+    if (selectedType === "story" && !storyContent.trim()) missing.push("journal content");
     if (!selectedType || missing.length === 0) return null;
     return (
       <div className="rounded-xl bg-lion-dark-2 border border-lion-gold/10 px-4 py-3 flex items-start gap-3">

@@ -43,6 +43,8 @@ export interface StoryData {
   title: string;
   content: string;
   tags: string[];
+  beforeImageUrl?: string;
+  afterImageUrl?: string;
 }
 
 // ─── Post Type ─────────────────────────────────────────────────────────────
@@ -74,12 +76,16 @@ export interface MockPost {
 
 export interface MockNotification {
   id: string;
-  type: "like" | "comment" | "follow" | "mention" | "save";
+  type: "like" | "comment" | "follow" | "mention" | "save" | "dm";
   user: MockUser;
   message: string;
   createdAt: string;
   read: boolean;
   postId?: string;
+  /** The actual comment text — only present for comment notifications */
+  commentText?: string;
+  /** The actual DM preview — only present for dm notifications */
+  dmPreview?: string;
 }
 
 // ─── Mock Users ────────────────────────────────────────────────────────────
@@ -503,7 +509,7 @@ export const postTypeConfig: Record<
     emoji: "💬",
   },
   story: {
-    label: "Story",
+    label: "Journal",
     color: "text-gains-orange",
     bgColor: "bg-gains-orange/10",
     emoji: "📖",

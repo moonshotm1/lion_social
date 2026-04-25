@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -12,22 +12,71 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "../../src/constants/colors";
 import { getRelativeTime } from "../../src/constants/mock-data";
 import Avatar from "../../src/components/Avatar";
+import { supabase } from "../../src/lib/supabase";
 import { useNotifications, type RealNotification } from "../../src/hooks/use-notifications";
 
 const NOTIFICATION_ICONS: Record<string, string> = {
   follow: "👤",
   like: "❤️",
   comment: "💬",
+  save: "⭐",
 };
 
 export default function NotificationsScreen() {
-  const { notifications, unreadCount, loading, markAllRead, markRead } =
+  const { notifications, unreadCount, loading, markAllRead, markRead, refetch } =
     useNotifications();
 
-  const onRefresh = useCallback(() => {
-    // Realtime subscription handles live updates; pull-to-refresh is a no-op here
-    // until a manual refetch method is exposed from the hook.
-  }, []);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
+  // Track which actor IDs we are following back
+  const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
+  const [followLoadingSet, setFollowLoadingSet] = useState<Set<string>>(new Set());
+
+  const handleFollowBack = useCallback(async (actorId: string) => {
+    if (followLoadingSet.has(actorId)) return;
+    const willFollow = !followingSet.has(actorId);
+
+    setFollowLoadingSet((prev) => new Set(prev).add(actorId));
+    setFollowingSet((prev) => {
+      const next = new Set(prev);
+      if (willFollow) next.add(actorId); else next.delete(actorId);
+      return next;
+    });
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const { data: me } = await supabase
+        .from("User").select("id").eq("supabaseId", session.user.id).single();
+      if (!me) throw new Error("User not found");
+
+      if (willFollow) {
+        await supabase.from("Follow").insert({ followerId: me.id, followingId: actorId });
+      } else {
+        await supabase.from("Follow").delete()
+          .eq("followerId", me.id).eq("followingId", actorId);
+      }
+    } catch {
+      // Revert on error
+      setFollowingSet((prev) => {
+        const next = new Set(prev);
+        if (willFollow) next.delete(actorId); else next.add(actorId);
+        return next;
+      });
+    } finally {
+      setFollowLoadingSet((prev) => {
+        const next = new Set(prev);
+        next.delete(actorId);
+        return next;
+      });
+    }
+  }, [followingSet, followLoadingSet]);
 
   const renderNotification = ({ item }: { item: RealNotification }) => (
     <Pressable
@@ -68,8 +117,20 @@ export default function NotificationsScreen() {
 
       {/* Follow-back button */}
       {item.type === "follow" && (
-        <Pressable style={styles.followBackButton}>
-          <Text style={styles.followBackText}>Follow</Text>
+        <Pressable
+          style={[
+            styles.followBackButton,
+            followingSet.has(item.actor.id) && styles.followBackButtonActive,
+          ]}
+          onPress={() => handleFollowBack(item.actor.id)}
+          disabled={followLoadingSet.has(item.actor.id)}
+        >
+          <Text style={[
+            styles.followBackText,
+            followingSet.has(item.actor.id) && styles.followBackTextActive,
+          ]}>
+            {followingSet.has(item.actor.id) ? "Following" : "Follow"}
+          </Text>
         </Pressable>
       )}
     </Pressable>
@@ -116,18 +177,18 @@ export default function NotificationsScreen() {
   const earlierNotifications = notifications.filter((n) => n.isRead);
 
   type ListItem =
-    | { id: string; type: "section"; title: string }
-    | (RealNotification & { type: "notification" });
+    | { id: string; _kind: "section"; title: string }
+    | (RealNotification & { _kind: "notification" });
 
   const listData: ListItem[] = [
     ...(newNotifications.length > 0
-      ? [{ id: "header-new", type: "section" as const, title: "New" }]
+      ? [{ id: "header-new", _kind: "section" as const, title: "New" }]
       : []),
-    ...newNotifications.map((n) => ({ ...n, type: "notification" as const })),
+    ...newNotifications.map((n) => ({ ...n, _kind: "notification" as const })),
     ...(earlierNotifications.length > 0
-      ? [{ id: "header-earlier", type: "section" as const, title: "Earlier" }]
+      ? [{ id: "header-earlier", _kind: "section" as const, title: "Earlier" }]
       : []),
-    ...earlierNotifications.map((n) => ({ ...n, type: "notification" as const })),
+    ...earlierNotifications.map((n) => ({ ...n, _kind: "notification" as const })),
   ];
 
   return (
@@ -135,7 +196,7 @@ export default function NotificationsScreen() {
       <FlatList
         data={listData}
         renderItem={({ item }) => {
-          if (item.type === "section") {
+          if (item._kind === "section") {
             return (
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionHeaderText}>
@@ -153,7 +214,7 @@ export default function NotificationsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={false}
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={Colors.gold}
             colors={[Colors.gold]}
@@ -289,10 +350,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
   },
+  followBackButtonActive: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: Colors.gold,
+  },
   followBackText: {
     fontSize: 13,
     fontWeight: "700",
     color: Colors.black,
+  },
+  followBackTextActive: {
+    color: Colors.gold,
   },
   emptyContainer: {
     flex: 1,

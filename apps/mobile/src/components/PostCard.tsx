@@ -24,6 +24,7 @@ export default function PostCard({ post }: PostCardProps) {
   const router = useRouter();
   const [isLiked, setIsLiked] = useState(post.isLiked);
   const [likesCount, setLikesCount] = useState(post.likesCount);
+  const [isSaved, setIsSaved] = useState(false);
   const [appUserId, setAppUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,15 +37,33 @@ export default function PostCard({ post }: PostCardProps) {
         .single();
       if (!appUser) return;
       setAppUserId(appUser.id);
-      const { data: like } = await supabase
-        .from("Like")
-        .select("id")
-        .eq("postId", post.id)
-        .eq("userId", appUser.id)
-        .maybeSingle();
+      const [{ data: like }, { data: save }] = await Promise.all([
+        supabase.from("Like").select("id").eq("postId", post.id).eq("userId", appUser.id).maybeSingle(),
+        supabase.from("Save").select("id").eq("postId", post.id).eq("userId", appUser.id).maybeSingle(),
+      ]);
       setIsLiked(!!like);
+      setIsSaved(!!save);
     });
   }, [post.id]);
+
+  const handleSave = async () => {
+    const wasSaved = isSaved;
+    setIsSaved(!wasSaved);
+    if (!appUserId) return;
+    if (wasSaved) {
+      const { error } = await supabase
+        .from("Save")
+        .delete()
+        .eq("postId", post.id)
+        .eq("userId", appUserId);
+      if (error) setIsSaved(wasSaved);
+    } else {
+      const { error } = await supabase
+        .from("Save")
+        .insert({ postId: post.id, userId: appUserId });
+      if (error) setIsSaved(wasSaved);
+    }
+  };
 
   const handleLike = async () => {
     const wasLiked = isLiked;
@@ -164,7 +183,10 @@ export default function PostCard({ post }: PostCardProps) {
           </Pressable>
         </View>
 
-        <Pressable style={styles.actionButton}>
+        <Pressable
+          style={[styles.actionButton, isSaved && styles.actionButtonSaved]}
+          onPress={handleSave}
+        >
           <Text style={styles.actionIcon}>🔖</Text>
         </Pressable>
       </View>
@@ -291,5 +313,10 @@ const styles = StyleSheet.create({
   },
   actionCountLiked: {
     color: "#EF4444",
+  },
+  actionButtonSaved: {
+    backgroundColor: "rgba(250, 204, 21, 0.15)",
+    borderRadius: 8,
+    paddingHorizontal: 6,
   },
 });

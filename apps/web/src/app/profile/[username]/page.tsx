@@ -17,6 +17,7 @@ import {
   Ticket,
   LogOut,
   Camera,
+  MessageCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUserProfile } from "@/hooks/use-user-profile";
@@ -43,6 +44,8 @@ export default function ProfilePage({
   const [showConnections, setShowConnections] = useState(false);
   const [connectionsTab, setConnectionsTab] = useState<"followers" | "following">("followers");
   const [showMenu, setShowMenu] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [longestStreak, setLongestStreak] = useState(0);
 
   // Resolve the "me" alias to the current user's real username
   const { user: currentUser, isLoading: currentUserLoading } = useCurrentUser();
@@ -139,14 +142,23 @@ export default function ProfilePage({
     if (profileUser?.following !== undefined) setFollowingCount(profileUser.following);
   }, [profileUser?.followers, profileUser?.following]);
 
-  // Sync isFollowing and reset tab only when the profile user changes (not on background polls)
-  // Using profileUser?.id as dep prevents background refreshes from overriding optimistic state
+  // Fetch streak when profile user is known
   useEffect(() => {
-    if (!isOwnProfile) {
+    if (!profileUser?.id) return;
+    fetch(`/api/user/streak?userId=${profileUser.id}`)
+      .then(r => r.json())
+      .then(data => { setStreak(data.streak ?? 0); setLongestStreak(data.longestStreak ?? 0); })
+      .catch(() => {});
+  }, [profileUser?.id]);
+
+  useEffect(() => {
+    if (!isOwnProfile && !followLoading) {
       setIsFollowing(profileIsFollowing);
-      // Reset to posts tab — likes/favorites are private and not shown for other profiles
-      setActiveTab("posts");
     }
+  }, [profileIsFollowing, isOwnProfile, followLoading]);
+
+  useEffect(() => {
+    if (!isOwnProfile) setActiveTab("posts");
   }, [profileUser?.id, isOwnProfile]);
 
   const handleFollow = async () => {
@@ -344,6 +356,13 @@ export default function ProfilePage({
             {isOwnProfile ? (
               <>
                 <Link
+                  href="/messages"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold bg-lion-dark-3 text-lion-gray-4 border border-lion-gold/20 hover:border-lion-gold/40 hover:text-lion-white transition-all duration-200"
+                  title="Messages"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                </Link>
+                <Link
                   href="/invite"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold bg-lion-dark-3 text-lion-gold border border-lion-gold/20 hover:border-lion-gold/40 transition-all duration-200"
                   title="Invite Friends"
@@ -359,20 +378,31 @@ export default function ProfilePage({
                 </Link>
               </>
             ) : (
-              <button
-                onClick={handleFollow}
-                disabled={followLoading}
-                className={`
-                  px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300 disabled:opacity-60
-                  ${
-                    isFollowing
-                      ? "bg-lion-dark-3 text-lion-white border border-lion-gold/20 hover:border-red-400/30 hover:text-red-400"
-                      : "btn-gold"
-                  }
-                `}
-              >
-                {isFollowing ? "Following" : "Follow"}
-              </button>
+              <div className="flex items-center gap-2">
+                {profileUser?.id && (
+                  <Link
+                    href={`/messages/${profileUser.id}`}
+                    className="p-2 rounded-xl bg-lion-dark-3 text-lion-gray-4 border border-lion-gold/20 hover:border-lion-gold/40 hover:text-lion-white transition-all duration-200"
+                    title="Send message"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                  </Link>
+                )}
+                <button
+                  onClick={handleFollow}
+                  disabled={followLoading}
+                  className={`
+                    px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-300 disabled:opacity-60
+                    ${
+                      isFollowing
+                        ? "bg-lion-dark-3 text-lion-white border border-lion-gold/20 hover:border-red-400/30 hover:text-red-400"
+                        : "btn-gold"
+                    }
+                  `}
+                >
+                  {isFollowing ? "Following" : "Follow"}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -411,6 +441,25 @@ export default function ProfilePage({
             <p className="text-xs text-lion-gray-3">Following</p>
           </button>
         </div>
+
+        {/* Streak card */}
+        {streak > 0 && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-lion-gold/8 border border-lion-gold/20">
+            <div className="text-2xl leading-none">🔥</div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-lion-gold">
+                {streak} day streak
+              </p>
+              <p className="text-xs text-lion-gray-3 mt-0.5">
+                {streak === longestStreak ? "Personal best!" : `Best: ${longestStreak} days`}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-lion-gray-3">Keep it going</p>
+              <p className="text-xs font-semibold text-lion-gold mt-0.5">Post today ↗</p>
+            </div>
+          </div>
+        )}
 
         {/* Invite section — own profile only */}
         {isOwnProfile && inviteCode && (
@@ -557,9 +606,9 @@ export default function ProfilePage({
           initialTab={connectionsTab}
           followersCount={followersCount}
           followingCount={followingCount}
+          onConnectionAction={refreshCounts}
           onClose={() => {
             setShowConnections(false);
-            // Background-refresh counts after follow/unfollow in modal
             setTimeout(() => refreshCounts(), 500);
           }}
         />

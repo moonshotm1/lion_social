@@ -31,6 +31,13 @@ function useUnreadCountReal() {
     return () => clearInterval(interval);
   }, [fetchCount]);
 
+  // Reset badge immediately when the notifications page marks all as read
+  useEffect(() => {
+    const handler = () => setCount(0);
+    window.addEventListener("lion:notifications-read-all", handler);
+    return () => window.removeEventListener("lion:notifications-read-all", handler);
+  }, []);
+
   useEffect(() => {
     if (!user?.id) return;
 

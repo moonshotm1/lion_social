@@ -247,7 +247,7 @@ export const CATEGORIES = [
   { id: "workout", label: "Workout", icon: "fitness-center" },
   { id: "meal", label: "Meal", icon: "restaurant" },
   { id: "quote", label: "Quote", icon: "format-quote" },
-  { id: "story", label: "Story", icon: "auto-stories" },
+  { id: "story", label: "Journal", icon: "auto-stories" },
 ] as const;
 
 // ── Helper ──────────────────────────────────────────────────────────────

@@ -54,6 +54,7 @@ export default function PostDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState("");
   const [isLiked, setIsLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(0);
   const [localComments, setLocalComments] = useState<CommentItem[]>([]);
   const [appUserId, setAppUserId] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string>("you");
@@ -63,7 +64,7 @@ export default function PostDetailScreen() {
       .from("Post")
       .select(`
         id, caption, imageUrl, type, createdAt,
-        User!inner (id, username, displayName, avatarUrl, isVerified),
+        User!inner (id, username, avatarUrl),
         Like (id),
         Comment (id)
       `)
@@ -77,20 +78,22 @@ export default function PostDetailScreen() {
     }
 
     const p = data as any;
+    const count = (p.Like as any[]).length;
+    setLikesCount(count);
     setPost({
       id: p.id,
       caption: p.caption,
       imageUrl: p.imageUrl ?? null,
       type: p.type,
       createdAt: p.createdAt,
-      likesCount: (p.Like as any[]).length,
+      likesCount: count,
       commentsCount: (p.Comment as any[]).length,
       user: {
         id: p.User.id,
         username: p.User.username,
-        displayName: p.User.displayName,
+        displayName: p.User.username,
         avatarUrl: p.User.avatarUrl ?? null,
-        isVerified: p.User.isVerified ?? false,
+        isVerified: false,
       },
     });
     setLoading(false);
@@ -159,6 +162,7 @@ export default function PostDetailScreen() {
   const handleLike = useCallback(async () => {
     const wasLiked = isLiked;
     setIsLiked(!wasLiked);
+    setLikesCount((prev) => wasLiked ? prev - 1 : prev + 1);
 
     if (!appUserId) return;
 
@@ -168,12 +172,12 @@ export default function PostDetailScreen() {
         .delete()
         .eq("postId", id)
         .eq("userId", appUserId);
-      if (error) setIsLiked(wasLiked);
+      if (error) { setIsLiked(wasLiked); setLikesCount((prev) => prev + 1); }
     } else {
       const { error } = await supabase
         .from("Like")
         .insert({ postId: id, userId: appUserId });
-      if (error) setIsLiked(wasLiked);
+      if (error) { setIsLiked(wasLiked); setLikesCount((prev) => prev - 1); }
     }
   }, [isLiked, appUserId, id]);
 
@@ -195,7 +199,7 @@ export default function PostDetailScreen() {
 
     const { error } = await supabase
       .from("Comment")
-      .insert({ postId: id, userId: appUserId, content: text });
+      .insert({ postId: id, userId: appUserId, content: text, updatedAt: new Date().toISOString() });
 
     if (error) {
       console.error("[PostDetail] Comment insert error:", error.message);
@@ -284,7 +288,7 @@ export default function PostDetailScreen() {
                   {isLiked ? "♥" : "♡"}
                 </Text>
                 <Text style={[styles.actionCount, isLiked && styles.actionCountLiked]}>
-                  {formatCount(post.likesCount + (isLiked ? 1 : 0))}
+                  {formatCount(likesCount)}
                 </Text>
               </Pressable>
               <View style={styles.actionButton}>

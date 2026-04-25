@@ -24,6 +24,8 @@ interface ConnectionsModalProps {
   followersCount: number;
   followingCount: number;
   onClose: () => void;
+  /** Called after a successful follow/unfollow so the profile header can refetch DB counts */
+  onConnectionAction?: () => void;
 }
 
 export function ConnectionsModal({
@@ -32,14 +34,12 @@ export function ConnectionsModal({
   followersCount,
   followingCount,
   onClose,
+  onConnectionAction,
 }: ConnectionsModalProps) {
   const [activeTab, setActiveTab] = useState<ConnectionType>(initialTab);
   const [users, setUsers] = useState<ConnectionUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState<Set<string>>(new Set());
-  // Local count state so follow/unfollow actions immediately reflect in tab counts
-  const [localFollowersCount, setLocalFollowersCount] = useState(followersCount);
-  const [localFollowingCount, setLocalFollowingCount] = useState(followingCount);
 
   const fetchConnections = useCallback(async (type: ConnectionType) => {
     setIsLoading(true);
@@ -57,11 +57,7 @@ export function ConnectionsModal({
       );
       const data = await res.json();
       if (res.ok) {
-        const fetched: ConnectionUser[] = data.users ?? [];
-        setUsers(fetched);
-        // Sync tab counts to match actual fetched list so they stay consistent
-        if (type === 'followers') setLocalFollowersCount(fetched.length);
-        else setLocalFollowingCount(fetched.length);
+        setUsers((data.users ?? []) as ConnectionUser[]);
       }
     } catch {
       setUsers([]);
@@ -79,11 +75,11 @@ export function ConnectionsModal({
     setFollowLoading((prev) => new Set(prev).add(targetUser.id));
 
     const willFollow = !targetUser.isFollowing;
-    // Optimistic update — update list state and following count
+    // Optimistic: only the row's Follow button — do NOT bump profile owner's
+    // follower/following tab totals (those are matteo's counts, not the viewer's).
     setUsers((prev) =>
       prev.map((u) => u.id === targetUser.id ? { ...u, isFollowing: willFollow } : u)
     );
-    setLocalFollowingCount((c) => willFollow ? c + 1 : Math.max(0, c - 1));
 
     try {
       const supabase = createSupabaseBrowserClient();
@@ -103,17 +99,11 @@ export function ConnectionsModal({
       setUsers((prev) =>
         prev.map((u) => u.id === targetUser.id ? { ...u, isFollowing: serverFollowing } : u)
       );
-      // Update local following count based on server-confirmed state
-      if (serverFollowing !== willFollow) {
-        // Server corrected our optimistic guess — adjust accordingly
-        setLocalFollowingCount((c) => serverFollowing ? c + 1 : Math.max(0, c - 1));
-      }
+      onConnectionAction?.();
     } catch {
-      // Revert follow state and count
       setUsers((prev) =>
         prev.map((u) => u.id === targetUser.id ? { ...u, isFollowing: !willFollow } : u)
       );
-      setLocalFollowingCount((c) => willFollow ? Math.max(0, c - 1) : c + 1);
     } finally {
       setFollowLoading((prev) => {
         const next = new Set(prev);
@@ -152,7 +142,7 @@ export function ConnectionsModal({
         {/* Tabs */}
         <div className="flex shrink-0 border-b border-lion-gold/10">
           {(["followers", "following"] as const).map((tab) => {
-            const count = tab === "followers" ? localFollowersCount : localFollowingCount;
+            const count = tab === "followers" ? followersCount : followingCount;
             const isActive = activeTab === tab;
             return (
               <button

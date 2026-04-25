@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, BadgeCheck, Send } from "lucide-react";
 import { PostCard } from "@/components/feed/post-card";
+import { useViews } from "@/components/providers/views-provider";
 import { isClientDemoMode } from "@/lib/env-client";
 import { mockPosts } from "@/lib/mock-data";
 import { transformPost } from "@/lib/transforms";
@@ -140,12 +141,14 @@ function PostDetailShell({
   isLoading,
   onComment,
   isCommenting,
+  commentError,
 }: {
   post: MockPost | null;
   comments: PostComment[];
   isLoading: boolean;
   onComment?: (content: string) => void;
   isCommenting?: boolean;
+  commentError?: string | null;
 }) {
   const router = useRouter();
 
@@ -218,6 +221,11 @@ function PostDetailShell({
           </h3>
         </div>
         <CommentList comments={comments} />
+        {onComment && commentError ? (
+          <p className="px-4 pb-2 text-xs text-red-400" role="alert">
+            {commentError}
+          </p>
+        ) : null}
         {onComment && (
           <CommentInput onSubmit={onComment} isSubmitting={isCommenting ?? false} />
         )}
@@ -236,9 +244,15 @@ function PostDetailDemo({ id }: { id: string }) {
 // ─── Real mode ────────────────────────────────────────────────────────────
 
 function PostDetailReal({ id }: { id: string }) {
+  const { trackView } = useViews();
   const [postData, setPostData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCommenting, setIsCommenting] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (id) trackView(id);
+  }, [id, trackView]);
 
   const fetchPost = useCallback(async () => {
     try {
@@ -262,19 +276,31 @@ function PostDetailReal({ id }: { id: string }) {
 
   const handleComment = useCallback(
     async (content: string) => {
+      setCommentError(null);
       setIsCommenting(true);
       try {
         const { data: { session } } = await createSupabaseBrowserClient().auth.getSession();
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
-        await fetch(`/api/post/${id}/comment`, {
+        const res = await fetch(`/api/post/${id}/comment`, {
           method: "POST",
           headers,
           body: JSON.stringify({ content }),
         });
+        if (!res.ok) {
+          let message = "Could not post comment";
+          try {
+            const err = await res.json();
+            if (typeof err?.error === "string") message = err.error;
+          } catch {
+            /* ignore */
+          }
+          setCommentError(message);
+          return;
+        }
         await fetchPost();
       } catch {
-        // silently fail
+        setCommentError("Could not post comment. Check your connection and try again.");
       } finally {
         setIsCommenting(false);
       }
@@ -292,6 +318,7 @@ function PostDetailReal({ id }: { id: string }) {
       isLoading={isLoading}
       onComment={handleComment}
       isCommenting={isCommenting}
+      commentError={commentError}
     />
   );
 }

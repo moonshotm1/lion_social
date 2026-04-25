@@ -2,27 +2,35 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const { createSupabaseServerClient } = await import('@/lib/supabase')
-    const authClient = await createSupabaseServerClient()
-    const { data: { user: authUser }, error: authError } = await authClient.auth.getUser()
-
-    if (authError || !authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    let authUser: { id: string } | null = null;
+    const auth = req.headers.get('authorization');
+    if (auth?.startsWith('Bearer ')) {
+      const { data: { user }, error } = await supabase.auth.getUser(auth.slice(7));
+      if (!error && user) authUser = user;
+    }
+    if (!authUser) {
+      const { createSupabaseServerClient } = await import('@/lib/supabase')
+      const authClient = await createSupabaseServerClient()
+      const { data: { user: cookieUser }, error: authError } = await authClient.auth.getUser()
+      if (authError || !cookieUser) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      authUser = cookieUser;
+    }
+
     const { data: user, error } = await supabase
       .from('User')
       .select('id, username, bio, avatarUrl, supabaseId, createdAt, inviteCode, inviteCount, invitesUsed')
-      .eq('supabaseId', authUser.id)
+      .eq('supabaseId', authUser!.id)
       .single()
 
     if (error || !user) {

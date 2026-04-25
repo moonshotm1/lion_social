@@ -1,22 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
+import Link from "next/link";
 import {
   Crown,
   Flame,
-  TrendingUp,
   Sparkles,
   Dumbbell,
   Salad,
   Quote,
   BookOpen,
   Users,
+  MessageCircle,
+  RefreshCw,
 } from "lucide-react";
 import { PostCard } from "./post-card";
 import { useFeed } from "@/hooks/use-feed";
+import { useUnreadMessages } from "@/hooks/use-unread-messages";
 import type { PostType } from "@/lib/types";
 
-type FeedTab = "following" | "explore";
 type CategoryFilter = "all" | PostType;
 
 const categories: {
@@ -30,110 +32,129 @@ const categories: {
   { id: "workout", label: "Workouts", icon: Dumbbell, activeColor: "text-lion-gold", activeBg: "bg-lion-gold/15 border-lion-gold/40" },
   { id: "meal", label: "Meals", icon: Salad, activeColor: "text-gains-green", activeBg: "bg-gains-green/15 border-gains-green/40" },
   { id: "quote", label: "Quotes", icon: Quote, activeColor: "text-gains-purple", activeBg: "bg-gains-purple/15 border-gains-purple/40" },
-  { id: "story", label: "Stories", icon: BookOpen, activeColor: "text-gains-orange", activeBg: "bg-gains-orange/15 border-gains-orange/40" },
+  { id: "story", label: "Journal", icon: BookOpen, activeColor: "text-gains-orange", activeBg: "bg-gains-orange/15 border-gains-orange/40" },
 ];
 
+const PULL_THRESHOLD = 72; // px of drag needed to trigger refresh
+
 export function Feed() {
-  const [activeTab, setActiveTab] = useState<FeedTab>("following");
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
-  const { posts: filteredPosts, isLoading, isLoadingMore, hasNextPage, fetchNextPage } = useFeed(activeCategory, activeTab);
+  // Home feed always shows the "following" tab — people you follow
+  const { posts, isLoading, isLoadingMore, hasNextPage, fetchNextPage, refresh } = useFeed(activeCategory, "following");
+  const { count: unreadMessages } = useUnreadMessages();
+
+  // ── Pull-to-refresh ───────────────────────────────────────────────────────
+  const [pullY, setPullY] = useState(0);          // how far dragged (0–PULL_THRESHOLD)
+  const [refreshing, setRefreshing] = useState(false);
+  const touchStartY = useRef(0);
+  const pulling = useRef(false);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      touchStartY.current = e.touches[0].clientY;
+      pulling.current = true;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!pulling.current || refreshing) return;
+    const delta = e.touches[0].clientY - touchStartY.current;
+    if (delta > 0 && window.scrollY === 0) {
+      setPullY(Math.min(delta, PULL_THRESHOLD));
+    } else {
+      pulling.current = false;
+      setPullY(0);
+    }
+  }, [refreshing]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!pulling.current) return;
+    pulling.current = false;
+    if (pullY >= PULL_THRESHOLD) {
+      setRefreshing(true);
+      refresh();
+      setTimeout(() => setRefreshing(false), 800);
+    }
+    setPullY(0);
+  }, [pullY, refresh]);
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="text-center py-4 animate-fade-in">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-lion-gold/10 border border-lion-gold/20 mb-4">
-          <Flame className="w-4 h-4 text-lion-gold" />
-          <span className="text-xs font-semibold text-lion-gold uppercase tracking-wider">
-            Rise and Conquer
-          </span>
+    <div
+      className="space-y-6"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* ── Top Bar ── */}
+      <div className="sticky top-0 z-30 bg-lion-black/90 backdrop-blur-xl border-b border-lion-gold/8 -mx-4 px-4">
+        {/* App bar: logo left, messages right */}
+        <div className="flex items-center justify-between py-3">
+          <div className="flex items-center gap-2">
+            <Flame className="w-6 h-6 text-lion-gold drop-shadow-[0_0_6px_rgba(212,168,67,0.6)]" />
+            <span className="text-lg font-black text-lion-gold tracking-tight">
+              GAINS
+            </span>
+          </div>
+          <Link
+            href="/messages"
+            onClick={() => window.dispatchEvent(new CustomEvent("lion:messages-opened"))}
+            className="relative p-2 rounded-full hover:bg-lion-gold/10 transition-colors duration-200"
+          >
+            <MessageCircle className="w-6 h-6 text-lion-white" />
+            {unreadMessages > 0 && (
+              <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {unreadMessages > 99 ? "99+" : unreadMessages}
+              </span>
+            )}
+          </Link>
+        </div>
+
+        {/* Category pills */}
+        <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
+          {categories.map((cat) => {
+            const Icon = cat.icon;
+            const isActive = activeCategory === cat.id;
+
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`
+                  flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold
+                  border transition-all duration-200 whitespace-nowrap shrink-0
+                  ${
+                    isActive
+                      ? `${cat.activeBg} ${cat.activeColor}`
+                      : "bg-lion-dark-2 border-lion-gold/10 text-lion-gray-3 hover:border-lion-gold/25 hover:text-lion-gray-4"
+                  }
+                `}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {cat.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Tab Bar */}
-      <div className="sticky top-0 z-30 bg-lion-black/80 backdrop-blur-xl border-b border-lion-gold/10 -mx-4 px-4">
-        <div className="flex items-center gap-0">
-          <button
-            onClick={() => setActiveTab("following")}
-            className={`
-              relative flex-1 py-4 text-sm font-semibold text-center
-              transition-colors duration-200
-              ${
-                activeTab === "following"
-                  ? "text-lion-gold"
-                  : "text-lion-gray-3 hover:text-lion-white"
-              }
-            `}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <Crown className="w-4 h-4" />
-              Following
-            </div>
-            {activeTab === "following" && (
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-gold-gradient rounded-full" />
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab("explore")}
-            className={`
-              relative flex-1 py-4 text-sm font-semibold text-center
-              transition-colors duration-200
-              ${
-                activeTab === "explore"
-                  ? "text-lion-gold"
-                  : "text-lion-gray-3 hover:text-lion-white"
-              }
-            `}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Explore
-            </div>
-            {activeTab === "explore" && (
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-gold-gradient rounded-full" />
-            )}
-          </button>
+      {/* Pull-to-refresh indicator */}
+      {(pullY > 0 || refreshing) && (
+        <div
+          className="flex items-center justify-center transition-all duration-200"
+          style={{ height: refreshing ? 40 : pullY * 0.55 }}
+        >
+          <RefreshCw
+            className={`w-5 h-5 text-lion-gold transition-transform duration-200 ${refreshing ? "animate-spin" : ""}`}
+            style={{ transform: `rotate(${(pullY / PULL_THRESHOLD) * 180}deg)` }}
+          />
         </div>
-      </div>
-
-      {/* Category Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
-        {categories.map((cat) => {
-          const Icon = cat.icon;
-          const isActive = activeCategory === cat.id;
-
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`
-                flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold
-                border transition-all duration-200 whitespace-nowrap shrink-0
-                ${
-                  isActive
-                    ? `${cat.activeBg} ${cat.activeColor}`
-                    : "bg-lion-dark-2 border-lion-gold/10 text-lion-gray-3 hover:border-lion-gold/25 hover:text-lion-gray-4"
-                }
-              `}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {cat.label}
-              {isActive && activeCategory !== "all" && (
-                <span className="ml-0.5 opacity-70">
-                  ({filteredPosts.length})
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      )}
 
       {/* Posts Feed */}
       <div className="space-y-5">
-        {isLoading ? null : filteredPosts.length > 0 ? (
-          filteredPosts.map((post, index) => (
+        {isLoading ? null : posts.length > 0 ? (
+          posts.map((post, index) => (
             <div
               key={post.id}
               className="animate-slide-up"
@@ -142,7 +163,7 @@ export function Feed() {
               <PostCard post={post} />
             </div>
           ))
-        ) : activeTab === "following" ? (
+        ) : (
           <div className="flex flex-col items-center gap-4 py-20 text-center">
             <div className="w-16 h-16 rounded-full bg-lion-gold/10 flex items-center justify-center">
               <Users className="w-8 h-8 text-lion-gold/60" />
@@ -153,24 +174,12 @@ export function Feed() {
                 Follow people to see their posts here
               </p>
             </div>
-            <button
-              onClick={() => setActiveTab("explore")}
-              className="mt-1 px-5 py-2 rounded-xl text-sm font-semibold btn-gold"
-            >
-              Explore Posts
-            </button>
-          </div>
-        ) : (
-          <div className="text-center py-16">
-            <p className="text-sm text-lion-gray-3">
-              No posts in this category yet
-            </p>
           </div>
         )}
       </div>
 
       {/* Load More / End of Feed */}
-      {!isLoading && filteredPosts.length > 0 && (
+      {!isLoading && posts.length > 0 && (
         <div className="text-center py-8">
           {hasNextPage ? (
             <button
@@ -187,9 +196,6 @@ export function Feed() {
               </div>
               <p className="text-sm text-lion-gray-3 font-medium">
                 You&apos;re all caught up
-              </p>
-              <p className="text-xs text-lion-gray-2">
-                Follow more people to fill your feed
               </p>
             </div>
           )}

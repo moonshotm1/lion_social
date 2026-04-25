@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData()
     const file = formData.get('file') as File
     const bucketParam = (formData.get('bucket') as string | null) ?? 'posts'
-    const bucket = ['posts', 'avatars'].includes(bucketParam) ? bucketParam : 'posts'
+    const bucket = ['posts', 'avatars', 'messages'].includes(bucketParam) ? bucketParam : 'posts'
 
     if (!file) {
       return NextResponse.json({ error: 'No file' }, { status: 400 })

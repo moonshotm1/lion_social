@@ -8,6 +8,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase";
 interface LikesContextValue {
   likedIds: Set<string>;
   savedIds: Set<string>;
+  /** True once the user's liked/saved IDs have been fetched from the server. */
+  bootstrapped: boolean;
   /** Updates the local likedIds Set only — no API call. PostCard owns all writes. */
   setLikedId: (postId: string, liked: boolean) => void;
   /** Updates the local savedIds Set only — no API call. PostCard owns all writes. */
@@ -17,6 +19,7 @@ interface LikesContextValue {
 const LikesContext = createContext<LikesContextValue>({
   likedIds: new Set(),
   savedIds: new Set(),
+  bootstrapped: false,
   setLikedId: () => {},
   setSavedId: () => {},
 });
@@ -40,6 +43,10 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
     return new Set();
   });
 
+  // True once the server has responded — prevents sync effects from
+  // flashing the wrong state while the empty initial Sets are in place.
+  const [bootstrapped, setBootstrapped] = useState(isClientDemoMode);
+
   // Bootstrap: fetch all liked + saved post IDs once auth resolves
   useEffect(() => {
     if (isClientDemoMode) return;
@@ -52,6 +59,7 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           setLikedIds(new Set());
           setSavedIds(new Set());
+          setBootstrapped(true);
         }
         return;
       }
@@ -59,19 +67,34 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch("/api/user/liked-post-ids", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          // API error — leave bootstrapped=false so post.isLiked values from feed are preserved
+          return;
+        }
         const data = await res.json();
         if (!cancelled) {
           setLikedIds(new Set(data.postIds ?? []));
           setSavedIds(new Set(data.savedPostIds ?? []));
+          setBootstrapped(true);
         }
       } catch {
-        // non-fatal — start with empty sets
+        // non-fatal — don't mark bootstrapped so existing post.isLiked values are preserved
+        if (!cancelled) {
+          // leave bootstrapped=false so the sync effect doesn't wipe optimistic state
+        }
       }
     }
 
+    // Only bootstrap from getSession if we already have a token — avoids
+    // calling bootstrap(undefined) before Supabase has restored the session
+    // from localStorage, which would flash-clear liked/saved state.
+    // onAuthStateChange fires INITIAL_SESSION for every user (logged-in or
+    // not) and is the authoritative source for "no user confirmed".
     supabase.auth.getSession().then(({ data: { session } }) => {
-      bootstrap(session?.access_token);
+      if (session?.access_token) {
+        bootstrap(session.access_token);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -105,7 +128,7 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <LikesContext.Provider value={{ likedIds, savedIds, setLikedId, setSavedId }}>
+    <LikesContext.Provider value={{ likedIds, savedIds, bootstrapped, setLikedId, setSavedId }}>
       {children}
     </LikesContext.Provider>
   );

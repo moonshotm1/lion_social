@@ -10,7 +10,10 @@ export function transformPost(apiPost: any): MockPost {
     id: apiPost.id,
     type: apiPost.type,
     caption: apiPost.caption,
-    image: apiPost.imageUrl ?? undefined,
+    image: apiPost.imageUrl
+      ?? metadata.beforeImageUrl
+      ?? metadata.afterImageUrl
+      ?? undefined,
     createdAt:
       apiPost.createdAt instanceof Date
         ? apiPost.createdAt.toISOString()

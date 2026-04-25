@@ -8,6 +8,10 @@
     "DIRECT_URL"
   ],
   "tasks": {
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
     "build": {
       "dependsOn": ["^build"],
       "env": [

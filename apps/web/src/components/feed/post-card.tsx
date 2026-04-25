@@ -147,6 +147,7 @@ function InlineComments({
       });
       if (res.ok) {
         await reloadComments();
+        onCountChange(initialCount + 1);
       }
     } finally {
       setSubmittingReply(false);
@@ -384,13 +385,15 @@ function WorkoutContent({ data }: { data: WorkoutData }) {
         ))}
       </div>
 
-      {/* Total volume */}
-      <div className="flex items-center gap-2 pt-1">
-        <Flame className="w-3.5 h-3.5 text-lion-gold" />
-        <span className="text-xs font-semibold text-lion-gold">
-          Total Volume: {formatCount(totalVolume)} lbs
-        </span>
-      </div>
+      {/* Total volume — only shown if any weight was entered */}
+      {totalVolume > 0 && (
+        <div className="flex items-center gap-2 pt-1">
+          <Flame className="w-3.5 h-3.5 text-lion-gold" />
+          <span className="text-xs font-semibold text-lion-gold">
+            Total Volume: {formatCount(totalVolume)} lbs
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -415,32 +418,34 @@ function MealContent({ data }: { data: MealData }) {
         </span>
       </div>
 
-      {/* Macros row */}
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "Calories", value: `${data.macros.calories}`, unit: "kcal", color: "text-lion-gold" },
-          { label: "Protein", value: `${data.macros.protein}g`, unit: "", color: "text-red-400" },
-          { label: "Carbs", value: `${data.macros.carbs}g`, unit: "", color: "text-blue-400" },
-          { label: "Fat", value: `${data.macros.fat}g`, unit: "", color: "text-yellow-400" },
-        ].map((macro) => (
-          <div
-            key={macro.label}
-            className="text-center py-2 px-1 rounded-lg bg-lion-dark-2/60"
-          >
-            <p className={`text-sm font-bold ${macro.color}`}>
-              {macro.value}
-              {macro.unit && (
-                <span className="text-[10px] font-normal ml-0.5 opacity-70">
-                  {macro.unit}
-                </span>
-              )}
-            </p>
-            <p className="text-[10px] text-lion-gray-3 mt-0.5 uppercase tracking-wider">
-              {macro.label}
-            </p>
-          </div>
-        ))}
-      </div>
+      {/* Macros row — only shown if at least one value was set */}
+      {(data.macros.calories > 0 || data.macros.protein > 0 || data.macros.carbs > 0 || data.macros.fat > 0) && (
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label: "Calories", value: `${data.macros.calories}`, unit: "kcal", color: "text-lion-gold" },
+            { label: "Protein", value: `${data.macros.protein}g`, unit: "", color: "text-red-400" },
+            { label: "Carbs", value: `${data.macros.carbs}g`, unit: "", color: "text-blue-400" },
+            { label: "Fat", value: `${data.macros.fat}g`, unit: "", color: "text-yellow-400" },
+          ].map((macro) => (
+            <div
+              key={macro.label}
+              className="text-center py-2 px-1 rounded-lg bg-lion-dark-2/60"
+            >
+              <p className={`text-sm font-bold ${macro.color}`}>
+                {macro.value}
+                {macro.unit && (
+                  <span className="text-[10px] font-normal ml-0.5 opacity-70">
+                    {macro.unit}
+                  </span>
+                )}
+              </p>
+              <p className="text-[10px] text-lion-gray-3 mt-0.5 uppercase tracking-wider">
+                {macro.label}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Ingredients */}
       <div className="flex flex-wrap gap-1.5">
@@ -499,6 +504,11 @@ function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean 
     ? content.substring(0, previewLength).trim() + "..."
     : content;
 
+  const hasBefore = !!data.beforeImageUrl;
+  const hasAfter = !!data.afterImageUrl;
+  const hasImages = hasBefore || hasAfter;
+  const isSideBySide = hasBefore && hasAfter;
+
   return (
     <div className="px-4 pt-3 pb-2 space-y-3">
       {/* Title */}
@@ -506,6 +516,44 @@ function StoryContent({ data, expanded }: { data: StoryData; expanded?: boolean 
         <BookOpen className="w-4 h-4 text-gains-orange" />
         <h3 className="text-base font-bold text-lion-white">{data.title}</h3>
       </div>
+
+      {/* Before / After images */}
+      {hasImages && (
+        <div className={`grid gap-2 ${isSideBySide ? "grid-cols-2" : "grid-cols-1"}`}>
+          {hasBefore && (
+            <div className="relative rounded-xl overflow-hidden bg-lion-dark-2">
+              <Image
+                src={data.beforeImageUrl!}
+                alt="Before"
+                width={400}
+                height={300}
+                className="w-full object-cover"
+              />
+              {isSideBySide && (
+                <span className="absolute bottom-2 left-2 text-[10px] font-bold uppercase tracking-widest bg-lion-black/70 text-lion-gray-3 px-2 py-0.5 rounded-full">
+                  Before
+                </span>
+              )}
+            </div>
+          )}
+          {hasAfter && (
+            <div className="relative rounded-xl overflow-hidden bg-lion-dark-2">
+              <Image
+                src={data.afterImageUrl!}
+                alt="After"
+                width={400}
+                height={300}
+                className="w-full object-cover"
+              />
+              {isSideBySide && (
+                <span className="absolute bottom-2 left-2 text-[10px] font-bold uppercase tracking-widest bg-lion-black/70 text-gains-orange px-2 py-0.5 rounded-full">
+                  After
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Content preview */}
       <p className="text-sm text-lion-gray-4 leading-relaxed whitespace-pre-line">
@@ -541,24 +589,29 @@ interface PostCardProps {
 
 export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const router = useRouter();
-  const { likedIds, savedIds, setLikedId, setSavedId } = useLikes();
+  const { likedIds, savedIds, bootstrapped, setLikedId, setSavedId } = useLikes();
   const { trackView } = useViews();
   const { user: currentUser } = useCurrentUser();
   const isOwnPost = !!currentUser && currentUser.username === post.author.username;
 
   // ── Like state ────────────────────────────────────────────────────────────
-  // post.isLiked comes from the feed route (server-computed) — no async delay.
-  // likedIds.has() catches the case where context is already bootstrapped.
-  const [liked, setLiked] = useState(post.isLiked || likedIds.has(post.id));
+  // If already bootstrapped (navigated back to feed), use likedIds as truth.
+  // Otherwise use post.isLiked from the feed (auth-aware server value).
+  const [liked, setLiked] = useState(() =>
+    bootstrapped ? likedIds.has(post.id) : (post.isLiked ?? false)
+  );
   const [likeCount, setLikeCount] = useState(post.likes ?? 0);
 
   // ── Star/save state ───────────────────────────────────────────────────────
-  const [starred, setStarred] = useState(savedIds.has(post.id) || (post.isBookmarked ?? false));
+  const [starred, setStarred] = useState(() =>
+    bootstrapped ? savedIds.has(post.id) : (post.isBookmarked ?? false)
+  );
   const [starCount, setStarCount] = useState(post.favorites ?? 0);
 
   // ── Other UI state ────────────────────────────────────────────────────────
   const [isCopied, setIsCopied] = useState(false);
   const [isAnimatingLike, setIsAnimatingLike] = useState(false);
+  const [isAnimatingStar, setIsAnimatingStar] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments);
   const [viewCount, setViewCount] = useState(post.views);
@@ -576,31 +629,36 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   const pendingLikeRef = useRef(false);
   const pendingStarRef = useRef(false);
   const pendingCommentRef = useRef(false);
+  // Tracks whether this card has been locally viewed so poll doesn't wipe +1
+  const locallyViewedRef = useRef(false);
+  // Tracks whether we've done the one-time bootstrap sync for this card
+  const bootstrappedSyncedRef = useRef(bootstrapped);
 
-  // Sync liked state when LikesContext bootstraps or changes.
-  // Only trust likedIds — not post.isLiked — so stale feed data doesn't
-  // override a user's unlike before the next poll catches up.
+  // One-time sync when bootstrap completes — runs only once per card mount,
+  // NOT on every likedIds change. This prevents the cascade where liking
+  // post A re-evaluates all cards and overwrites their local state with
+  // stale post.isLiked values from the feed.
   useEffect(() => {
-    if (!pendingLikeRef.current) {
-      setLiked(likedIds.has(post.id));
+    if (bootstrapped && !bootstrappedSyncedRef.current) {
+      bootstrappedSyncedRef.current = true;
+      if (!pendingLikeRef.current) setLiked(likedIds.has(post.id));
+      if (!pendingStarRef.current) setStarred(savedIds.has(post.id));
     }
-  }, [likedIds, post.id]);
-  // Sync counts only from feed polls — not tied to likedIds changes
+  }, [bootstrapped, likedIds, savedIds, post.id]);
+
+  // Sync counts from feed polls — gated by pending refs
   useEffect(() => {
     if (!pendingLikeRef.current) setLikeCount(post.likes ?? 0);
   }, [post.likes]);
-  // Sync starred from savedIds context (same pattern as liked/likedIds)
-  useEffect(() => {
-    if (!pendingStarRef.current) {
-      setStarred(savedIds.has(post.id));
-    }
-  }, [savedIds, post.id]);
   useEffect(() => {
     if (!pendingStarRef.current) setStarCount(post.favorites ?? 0);
   }, [post.favorites]);
   useEffect(() => {
     if (!pendingCommentRef.current) setCommentCount(post.comments);
   }, [post.comments]);
+  useEffect(() => {
+    if (!locallyViewedRef.current) setViewCount(post.views);
+  }, [post.views]);
 
   // Track view via IntersectionObserver — only fires when post is actually visible,
   // and ViewsProvider will queue the request if the auth token isn't ready yet.
@@ -610,7 +668,9 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
+          locallyViewedRef.current = true;
           trackView(post.id);
+          setViewCount((prev) => prev + 1);
           observer.disconnect();
         }
       },
@@ -679,6 +739,9 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   };
 
   const handleLike = async () => {
+    // Prevent concurrent requests — same behaviour as X/Instagram
+    if (pendingLikeRef.current) return;
+
     const prevLiked = liked;
     const prevCount = likeCount;
     const newLiked = !prevLiked;
@@ -688,7 +751,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
     setLiked(newLiked);
     setLikeCount(newLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
     setIsAnimatingLike(true);
-    setTimeout(() => setIsAnimatingLike(false), 300);
+    setTimeout(() => setIsAnimatingLike(false), 400);
     onLike?.(post.id);
 
     if (isClientDemoMode) {
@@ -723,16 +786,22 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
   };
 
   const handleSave = async () => {
+    // Prevent concurrent requests
+    if (pendingStarRef.current) return;
+
     const prevStarred = starred;
     const prevCount = starCount;
     const newStarred = !prevStarred;
 
-    // Optimistic update
+    // Optimistic update + animation
     pendingStarRef.current = true;
     setStarred(newStarred);
     setStarCount(newStarred ? prevCount + 1 : Math.max(0, prevCount - 1));
+    setIsAnimatingStar(true);
+    setTimeout(() => setIsAnimatingStar(false), 400);
 
     if (isClientDemoMode) {
+      setSavedId(post.id, newStarred);
       pendingStarRef.current = false;
       return;
     }
@@ -1058,7 +1127,7 @@ export function PostCard({ post, onLike, expanded = false }: PostCardProps) {
                 starred
                   ? "text-yellow-400 fill-yellow-400 scale-110"
                   : "text-lion-gray-3 group-hover:text-yellow-400"
-              }`}
+              } ${isAnimatingStar ? "animate-scale-in" : ""}`}
             />
             <span
               className={`text-xs font-medium ${
